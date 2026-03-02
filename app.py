@@ -842,9 +842,10 @@ HTML_TEMPLATE = """
         let currentHighlightedBar = -1;
 
         function getBarDuration() {
-            // Bar duration in seconds = 60 / tempo (in cut-time bluegrass)
+            // Bar duration in seconds for cut-time bluegrass
+            // Internal tempo is doubled, so each bar = 120 / user_tempo
             const tempo = parseInt(document.getElementById('songTempo').value) || 110;
-            return 60 / tempo;
+            return 120 / tempo;
         }
 
         function highlightChordAtTime(currentTime) {
@@ -1179,26 +1180,28 @@ HTML_TEMPLATE = """
 
             const sectionsHtml = selectedSong.sections.map(section => {
                 const repeats = section.repeats || 1;
-                let sectionChordHtml = '';
 
+                // Render chords once (display)
+                const chordHtml = section.chords.map((chord, chordIdx) => {
+                    const transposed = transposeChordItem(chord, semitones);
+                    return formatChord(transposed, barIndex + chordIdx);
+                }).join(' ');
+
+                // Build timing map for all repeats (playback)
                 for (let r = 0; r < repeats; r++) {
-                    sectionChordHtml += section.chords.map(chord => {
-                        const transposed = transposeChordItem(chord, semitones);
-                        const html = formatChord(transposed, barIndex);
-                        // Track bar duration: half-bar = 0.5, others = 1
+                    section.chords.forEach((chord, chordIdx) => {
                         const duration = (Array.isArray(chord) && chord.length === 1) ? 0.5 : 1;
-                        chordTimingMap.push({ barIndex, duration });
-                        barIndex++;
-                        return html;
-                    }).join(' ');
-                    if (r < repeats - 1) sectionChordHtml += ' ';
+                        // Map back to the displayed bar index (same chords repeat)
+                        chordTimingMap.push({ barIndex: barIndex + chordIdx, duration });
+                    });
                 }
+                barIndex += section.chords.length;
 
                 const repeatLabel = repeats > 1 ? ` (x${repeats})` : '';
                 return `
                     <div class="preview-section">
                         <div class="preview-section-name">${section.name}${repeatLabel}</div>
-                        <div class="preview-chords">${sectionChordHtml}</div>
+                        <div class="preview-chords">${chordHtml}</div>
                     </div>
                 `;
             }).join('');
