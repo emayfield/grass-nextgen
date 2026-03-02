@@ -18,14 +18,28 @@ from bluegrass_midi import (
 )
 from midi_to_mp3 import convert_midi_to_mp3, find_soundfont
 
-# Load songs library at startup
+# Songs library with mtime-based caching
 SONGS_PATH = Path(__file__).parent / "songs.json"
 SONGS_DATA = None
-if SONGS_PATH.exists():
-    try:
-        SONGS_DATA = load_songs(SONGS_PATH)
-    except Exception as e:
-        print(f"Warning: Could not load songs.json: {e}")
+SONGS_MTIME = 0
+
+def get_songs_data():
+    """Get songs data, reloading if file has changed."""
+    global SONGS_DATA, SONGS_MTIME
+
+    if not SONGS_PATH.exists():
+        return None
+
+    current_mtime = SONGS_PATH.stat().st_mtime
+    if current_mtime != SONGS_MTIME:
+        try:
+            SONGS_DATA = load_songs(SONGS_PATH)
+            SONGS_MTIME = current_mtime
+            print(f"Reloaded songs.json ({len(SONGS_DATA)} songs)")
+        except Exception as e:
+            print(f"Warning: Could not load songs.json: {e}")
+
+    return SONGS_DATA
 
 app = Flask(__name__)
 
@@ -86,15 +100,10 @@ HTML_TEMPLATE = """
             height: calc(100vh - 48px);
         }
         .sidebar-header {
-            padding: 20px;
+            padding: 12px;
             border-bottom: 1px solid #eee;
         }
-        .sidebar-header h2 {
-            margin: 0 0 12px 0;
-            font-size: 16px;
-            color: #2c5530;
-        }
-        .song-search input {
+        .sidebar-header input {
             width: 100%;
             padding: 10px 14px;
             border: 2px solid #ddd;
@@ -108,6 +117,7 @@ HTML_TEMPLATE = """
         .song-list {
             flex: 1;
             overflow-y: auto;
+            min-height: 0;
         }
         .song-item {
             padding: 12px 20px;
@@ -136,6 +146,69 @@ HTML_TEMPLATE = """
             font-size: 11px;
         }
         .no-songs { padding: 20px; text-align: center; color: #888; }
+
+        /* Custom progression button */
+        .sidebar-footer {
+            padding: 12px;
+            border-top: 1px solid #ddd;
+        }
+        .create-custom-btn {
+            width: 100%;
+            padding: 10px;
+            background: #f8f9fa;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .create-custom-btn:hover {
+            background: #e8f5e9;
+            border-color: #2c5530;
+            color: #2c5530;
+        }
+
+        /* Editable custom song */
+        .custom-song-editor input[type="text"],
+        .custom-song-editor textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 12px;
+            font-family: inherit;
+        }
+        .custom-song-editor input:focus,
+        .custom-song-editor textarea:focus {
+            outline: none;
+            border-color: #2c5530;
+        }
+        .custom-song-editor .title-input {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .custom-song-editor .chords-input {
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        }
+        .custom-song-editor .lyrics-input {
+            min-height: 150px;
+            resize: vertical;
+        }
+        .custom-song-editor label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .custom-song-editor .help {
+            font-size: 11px;
+            color: #888;
+            margin: -8px 0 12px;
+        }
         .song-list-section {
             padding: 8px 16px 4px;
             font-size: 11px;
@@ -179,28 +252,6 @@ HTML_TEMPLATE = """
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
-        .tabs {
-            display: flex;
-            gap: 0;
-            margin-bottom: 25px;
-            border-bottom: 2px solid #ddd;
-        }
-        .tab {
-            padding: 12px 24px;
-            background: none;
-            border: none;
-            font-size: 15px;
-            font-weight: 600;
-            color: #666;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
-            transition: all 0.2s;
-        }
-        .tab:hover { color: #2c5530; }
-        .tab.active { color: #2c5530; border-bottom-color: #2c5530; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
         label {
             display: block;
             font-weight: 600;
@@ -236,41 +287,13 @@ HTML_TEMPLATE = """
         }
         button[type="submit"]:hover, .generate-btn:hover { background: #1e3d22; }
         button:disabled { background: #999; cursor: not-allowed; }
-        .help { font-size: 13px; color: #888; margin-top: -15px; margin-bottom: 20px; }
-        .result {
-            margin-top: 25px;
-            padding: 20px;
-            background: #e8f5e9;
-            border-radius: 8px;
-            display: none;
-        }
-        .result.show { display: block; }
-        .result.error { background: #ffebee; }
-        audio { width: 100%; margin-top: 15px; }
         .download-link {
             display: inline-block;
-            margin-top: 15px;
             color: #2c5530;
             text-decoration: none;
             font-weight: 600;
         }
         .download-link:hover { text-decoration: underline; }
-        .loading {
-            display: none;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        .loading.show { display: flex; }
-        .spinner {
-            width: 20px;
-            height: 20px;
-            border: 3px solid #ddd;
-            border-top-color: #2c5530;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* Song preview styles */
@@ -296,22 +319,32 @@ HTML_TEMPLATE = """
             margin-bottom: 4px;
         }
         .preview-chords {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
             font-family: 'SF Mono', Monaco, 'Courier New', monospace;
             font-size: 13px;
             color: #444;
-            word-wrap: break-word;
-            line-height: 1.6;
         }
         .preview-chords .chord {
-            display: inline-block;
+            width: calc(25% - 3px);
+            box-sizing: border-box;
             background: #fff;
             border: 1px solid #ddd;
-            padding: 2px 6px;
-            margin: 2px;
+            padding: 6px 4px;
             border-radius: 4px;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .preview-chords .split-bar { background: #e8f5e9; border-color: #2c5530; }
-        .preview-chords .half-bar { background: #fff3e0; border-color: #f57c00; }
+        .preview-chords .split-bar {
+            display: flex;
+            justify-content: space-around;
+        }
+        .preview-chords .half-bar {
+            width: calc(12.5% - 3px);
+        }
         .preview-chords .rest { background: #eee; color: #999; font-style: italic; }
 
         /* Lyrics styles */
@@ -407,14 +440,16 @@ HTML_TEMPLATE = """
         <!-- Sidebar with song list -->
         <div class="sidebar">
             <div class="sidebar-header">
-                <h2>Song Library</h2>
-                <div class="song-search">
-                    <input type="text" id="songSearch" placeholder="Search songs..."
-                           oninput="filterSongs(this.value)">
-                </div>
+                <input type="text" id="songSearch" placeholder="Search songs..."
+                       oninput="filterSongs(this.value)">
             </div>
             <div class="song-list" id="songList">
                 <div class="no-songs">Loading songs...</div>
+            </div>
+            <div class="sidebar-footer">
+                <button class="create-custom-btn" onclick="createCustomSong()">
+                    + Custom Song
+                </button>
             </div>
         </div>
 
@@ -422,93 +457,99 @@ HTML_TEMPLATE = """
         <div class="main">
             <div class="main-inner">
                 <div class="card">
-                    <div class="tabs">
-                        <button class="tab active" onclick="showTab('library')">Selected Song</button>
-                        <button class="tab" onclick="showTab('custom')">Custom Progression</button>
+                    <div id="noSongSelected" class="select-prompt">
+                        <h3>No song selected</h3>
+                        <p>Select a song from the sidebar to get started</p>
                     </div>
 
-                    <!-- Song library tab -->
-                    <div id="tab-library" class="tab-content active">
-                        <div id="noSongSelected" class="select-prompt">
-                            <h3>No song selected</h3>
-                            <p>Select a song from the sidebar to get started</p>
+                    <!-- Custom song editor -->
+                    <div id="customSongEditor" class="custom-song-editor" style="display: none;">
+                        <input type="text" id="customTitle" class="title-input"
+                               placeholder="Song Title" value="Custom Song">
+
+                        <div class="row">
+                            <div>
+                                <label for="customKey">Key</label>
+                                <select id="customKey" onchange="clearCustomCache()">
+                                    <option value="C">C</option>
+                                    <option value="D">D</option>
+                                    <option value="E">E</option>
+                                    <option value="F">F</option>
+                                    <option value="G" selected>G</option>
+                                    <option value="A">A</option>
+                                    <option value="B">B</option>
+                                    <option value="Am">Am</option>
+                                    <option value="Dm">Dm</option>
+                                    <option value="Em">Em</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="customTempo">Tempo (BPM)</label>
+                                <input type="number" id="customTempo" value="110" min="60" max="200"
+                                       onchange="clearCustomCache()">
+                            </div>
+                            <div>
+                                <label for="customRepeats">Repeats</label>
+                                <input type="number" id="customRepeats" value="2" min="1" max="8"
+                                       onchange="clearCustomCache()">
+                            </div>
+                            <button type="button" class="play-btn" id="customPlayBtn" onclick="playCustom()" title="Play">
+                                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            </button>
                         </div>
 
-                        <div id="songControls" style="display: none;">
-                            <div class="row">
-                                <div>
-                                    <label for="songKey">Key</label>
-                                    <select id="songKey" onchange="updateChordPreview()">
-                                        <option value="">Select a song first</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label for="songTempo">Tempo (BPM)</label>
-                                    <input type="number" id="songTempo" value="110" min="60" max="200">
-                                </div>
-                                <div>
-                                    <label for="songRepeats">Repeats</label>
-                                    <input type="number" id="songRepeats" value="1" min="1" max="8">
-                                </div>
-                                <button type="button" class="play-btn" id="playBtn" onclick="playOrGenerate()" title="Play">
-                                    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                                </button>
-                            </div>
-
-                            <div id="audioRow" class="audio-row" style="display: none;">
-                                <audio id="songAudioPlayer" controls loop></audio>
-                                <a id="songDownloadLink" class="download-link" download>Download</a>
-                            </div>
-
-                            <div id="songPreview" class="song-preview">
-                                <div class="preview-header">
-                                    <strong id="previewTitle"></strong>
-                                    <span id="previewMeta"></span>
-                                </div>
-                                <div id="previewSections"></div>
-                                <div id="lyricsSection" class="lyrics-section" style="display: none;">
-                                    <h3>Lyrics</h3>
-                                    <div id="lyricsContent" class="lyrics-content"></div>
-                                </div>
-                            </div>
-
+                        <div id="customAudioRow" class="audio-row" style="display: none;">
+                            <audio id="customAudioPlayer" controls loop></audio>
+                            <a id="customDownloadLink" class="download-link" download>Download</a>
                         </div>
+
+                        <label for="customChords">Chord Progression</label>
+                        <input type="text" id="customChords" class="chords-input"
+                               placeholder="G G C D" value="G G C D" onchange="clearCustomCache()">
+                        <p class="help">One chord per bar. Use [C, G] for split bars, [G] for half bars.</p>
+
+                        <label for="customLyrics">Lyrics (optional)</label>
+                        <textarea id="customLyrics" class="lyrics-input"
+                                  placeholder="Enter lyrics here...&#10;&#10;Use blank lines between verses.&#10;Wrap chorus in <chorus>...</chorus> tags."></textarea>
                     </div>
 
-                    <!-- Custom progression tab -->
-                    <div id="tab-custom" class="tab-content">
-                        <form id="generateForm">
-                            <label for="progression">Chord Progression</label>
-                            <input type="text" id="progression" name="progression"
-                                   placeholder="G C D G" value="G G C D" required>
-                            <p class="help">Each chord = 1 bar. Use [C, G] for split bars. Use ["G"] for half measures.</p>
-
-                            <div class="row">
-                                <div>
-                                    <label for="tempo">Tempo (BPM)</label>
-                                    <input type="number" id="tempo" name="tempo"
-                                           value="110" min="60" max="200" required>
-                                </div>
-                                <div>
-                                    <label for="repeats">Repeats</label>
-                                    <input type="number" id="repeats" name="repeats"
-                                           value="2" min="1" max="16" required>
-                                </div>
+                    <div id="songControls" style="display: none;">
+                        <div class="row">
+                            <div>
+                                <label for="songKey">Key</label>
+                                <select id="songKey" onchange="updateChordPreview()">
+                                    <option value="">Select a song first</option>
+                                </select>
                             </div>
+                            <div>
+                                <label for="songTempo">Tempo (BPM)</label>
+                                <input type="number" id="songTempo" value="110" min="60" max="200">
+                            </div>
+                            <div>
+                                <label for="songRepeats">Repeats</label>
+                                <input type="number" id="songRepeats" value="1" min="1" max="8">
+                            </div>
+                            <button type="button" class="play-btn" id="playBtn" onclick="playOrGenerate()" title="Play">
+                                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            </button>
+                        </div>
 
-                            <button type="submit" id="submitBtn">Generate Backing Track</button>
-                        </form>
-                    </div>
+                        <div id="audioRow" class="audio-row" style="display: none;">
+                            <audio id="songAudioPlayer" controls loop></audio>
+                            <a id="songDownloadLink" class="download-link" download>Download</a>
+                        </div>
 
-                    <div class="loading" id="loading">
-                        <div class="spinner"></div>
-                        <span>Generating your backing track...</span>
-                    </div>
-
-                    <div class="result" id="result">
-                        <strong>Your backing track is ready!</strong>
-                        <audio id="audioPlayer" controls loop></audio>
-                        <a id="downloadLink" class="download-link" download>Download MP3</a>
+                        <div id="songPreview" class="song-preview">
+                            <div class="preview-header">
+                                <strong id="previewTitle"></strong>
+                                <span id="previewMeta"></span>
+                            </div>
+                            <div id="previewSections"></div>
+                            <div id="lyricsSection" class="lyrics-section" style="display: none;">
+                                <h3>Lyrics</h3>
+                                <div id="lyricsContent" class="lyrics-content"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -519,12 +560,74 @@ HTML_TEMPLATE = """
         let songs = [];
         let selectedSong = null;
 
-        // Tab switching
-        function showTab(tabName) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelector(`.tab[onclick="showTab('${tabName}')"]`).classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
+        // Create custom song
+        function createCustomSong() {
+            // Deselect any selected song
+            document.querySelectorAll('.song-item').forEach(el => el.classList.remove('selected'));
+            selectedSong = null;
+
+            // Hide other views, show custom editor
+            document.getElementById('noSongSelected').style.display = 'none';
+            document.getElementById('songControls').style.display = 'none';
+            document.getElementById('customSongEditor').style.display = 'block';
+
+            // Reset audio
+            document.getElementById('customAudioRow').style.display = 'none';
+            customCachedAudio = null;
+        }
+
+        let customCachedAudio = null;
+
+        // Clear custom cache when inputs change
+        function clearCustomCache() {
+            customCachedAudio = null;
+            document.getElementById('customAudioRow').style.display = 'none';
+        }
+
+        async function playCustom() {
+            const btn = document.getElementById('customPlayBtn');
+            const audioPlayer = document.getElementById('customAudioPlayer');
+            const audioRow = document.getElementById('customAudioRow');
+
+            // If cached, just play
+            if (customCachedAudio) {
+                audioPlayer.play();
+                return;
+            }
+
+            const chords = document.getElementById('customChords').value.trim();
+            if (!chords) {
+                alert('Please enter a chord progression');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.classList.add('loading');
+
+            try {
+                const formData = new FormData();
+                formData.append('progression', chords);
+                formData.append('tempo', document.getElementById('customTempo').value);
+                formData.append('repeats', document.getElementById('customRepeats').value);
+
+                const response = await fetch('/generate', { method: 'POST', body: formData });
+                const data = await response.json();
+
+                if (data.success) {
+                    customCachedAudio = data.audio_url;
+                    audioPlayer.src = data.audio_url;
+                    document.getElementById('customDownloadLink').href = data.audio_url;
+                    audioRow.style.display = 'flex';
+                    audioPlayer.oncanplay = () => audioPlayer.play();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
         }
 
         // Load songs on page load
@@ -687,11 +790,11 @@ HTML_TEMPLATE = """
                 return '<span class="chord rest">rest</span>';
             } else if (Array.isArray(chord)) {
                 if (chord.length === 1) {
-                    // Half bar
-                    return `<span class="chord half-bar">[${chord[0]}]</span>`;
+                    // Half bar - shorter width, no brackets
+                    return `<span class="chord half-bar">${chord[0]}</span>`;
                 } else {
-                    // Split bar
-                    return `<span class="chord split-bar">[${chord.join(', ')}]</span>`;
+                    // Split bar - two chords spaced apart
+                    return `<span class="chord split-bar"><span>${chord[0]}</span><span>${chord[1]}</span></span>`;
                 }
             } else {
                 return `<span class="chord">${chord}</span>`;
@@ -743,12 +846,10 @@ HTML_TEMPLATE = """
             document.getElementById(`song-${songId}`).classList.add('selected');
             selectedSong = songs.find(s => s.id === songId);
 
-            // Show controls, hide prompt
+            // Show controls, hide prompt and custom editor
             document.getElementById('noSongSelected').style.display = 'none';
+            document.getElementById('customSongEditor').style.display = 'none';
             document.getElementById('songControls').style.display = 'block';
-
-            // Switch to library tab if not already there
-            showTab('library');
 
             // Populate key selector - only show keys matching major/minor
             const keySelect = document.getElementById('songKey');
@@ -844,39 +945,6 @@ HTML_TEMPLATE = """
             document.getElementById('progression').value = prog;
         }
 
-        document.getElementById('generateForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const submitBtn = document.getElementById('submitBtn');
-            const loading = document.getElementById('loading');
-            const result = document.getElementById('result');
-
-            submitBtn.disabled = true;
-            loading.classList.add('show');
-            result.classList.remove('show', 'error');
-
-            try {
-                const formData = new FormData(e.target);
-                const response = await fetch('/generate', { method: 'POST', body: formData });
-                const data = await response.json();
-
-                if (data.success) {
-                    document.getElementById('audioPlayer').src = data.audio_url;
-                    document.getElementById('downloadLink').href = data.audio_url;
-                    document.getElementById('downloadLink').textContent = `Download ${data.filename}`;
-                    result.classList.remove('error');
-                    result.classList.add('show');
-                } else {
-                    result.innerHTML = `<strong>Error:</strong> ${data.error}`;
-                    result.classList.add('show', 'error');
-                }
-            } catch (err) {
-                result.innerHTML = `<strong>Error:</strong> ${err.message}`;
-                result.classList.add('show', 'error');
-            } finally {
-                submitBtn.disabled = false;
-                loading.classList.remove('show');
-            }
-        });
 
         // Load songs on startup
         loadSongs();
@@ -1022,11 +1090,12 @@ def serve_audio(filename):
 @app.route('/api/songs')
 def api_list_songs():
     """Return list of available songs with section details."""
-    if SONGS_DATA is None:
+    songs_data = get_songs_data()
+    if songs_data is None:
         return jsonify([])
 
     songs = []
-    for song_id, data in SONGS_DATA.items():
+    for song_id, data in songs_data.items():
         songs.append({
             'id': song_id,
             'title': data.get('title', song_id),
@@ -1043,7 +1112,8 @@ def api_list_songs():
 def generate_song_route():
     """Generate a backing track from a song in the library."""
     try:
-        if SONGS_DATA is None:
+        songs_data = get_songs_data()
+        if songs_data is None:
             return jsonify({'success': False, 'error': 'Song library not available'})
 
         song_id = request.form.get('song_id', '').strip()
@@ -1055,14 +1125,14 @@ def generate_song_route():
         if not song_id:
             return jsonify({'success': False, 'error': 'No song selected'})
 
-        if song_id not in SONGS_DATA:
+        if song_id not in songs_data:
             return jsonify({'success': False, 'error': f'Song not found: {song_id}'})
 
         if not 60 <= tempo <= 200:
             return jsonify({'success': False, 'error': 'Tempo must be between 60 and 200 BPM'})
 
         # Get song progression
-        song = SONGS_DATA[song_id]
+        song = songs_data[song_id]
         progression = get_song_progression(song)
 
         if not progression:
