@@ -232,7 +232,7 @@ def generate_bluegrass_midi(
         guitar_octave: Octave for guitar bass notes (default 3)
 
     Returns:
-        Path to the generated MIDI file
+        Tuple of (path to generated MIDI file, duration in seconds)
     """
     # Bluegrass is in cut time - double the tempo for the actual quarter note pulse
     actual_tempo = tempo * 2
@@ -447,9 +447,14 @@ def generate_bluegrass_midi(
     for track in [tempo_track, bass_track, mando_track, guitar_track]:
         track.append(MetaMessage('end_of_track', time=0))
 
+    # Calculate duration in seconds
+    # current_tick is the total ticks, ticks_per_beat is 480
+    # actual_tempo is in BPM, so duration = ticks / ticks_per_beat / (actual_tempo / 60)
+    duration_seconds = current_tick / ticks_per_beat / (actual_tempo / 60)
+
     # Save
     mid.save(output_file)
-    return output_file
+    return output_file, duration_seconds
 
 
 # Convenience function for single chord
@@ -516,7 +521,7 @@ def generate_song(song_id, songs_data=None, json_path='songs.json',
         **kwargs: Additional args passed to generate_bluegrass_midi
 
     Returns:
-        Path to generated MIDI file
+        Tuple of (path to generated MIDI file, duration in seconds)
     """
     # Load songs if not provided
     if songs_data is None:
@@ -564,13 +569,13 @@ def list_songs(songs_data=None, json_path='songs.json'):
 if __name__ == '__main__':
     # Example: Generate a simple G-C-D progression
     progression = ['G', 'G', 'C', 'D'] * 4  # 16 bars
-    output = generate_bluegrass_midi(
+    output, duration = generate_bluegrass_midi(
         progression,
         tempo=110,
         output_file='bluegrass_example.mid'
     )
-    print(f"Generated: {output}")
+    print(f"Generated: {output} ({duration:.2f}s)")
 
     # Example: Single bar of G
-    output2 = generate_bar('G', bars=1, output_file='g_one_bar.mid')
-    print(f"Generated: {output2}")
+    output2, duration2 = generate_bar('G', bars=1, output_file='g_one_bar.mid')
+    print(f"Generated: {output2} ({duration2:.2f}s)")

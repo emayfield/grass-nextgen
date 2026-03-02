@@ -39,7 +39,7 @@ HTML_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bluegrass Backing Track Generator</title>
+    <title>Grass</title>
     <style>
         * { box-sizing: border-box; }
         html, body {
@@ -50,9 +50,30 @@ HTML_TEMPLATE = """
             color: #333;
             background: #f5f5f5;
         }
+        /* Top header bar */
+        .top-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 48px;
+            background: #2c5530;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 100;
+        }
+        .top-header h1 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+            letter-spacing: 0.5px;
+        }
         .layout {
             display: flex;
             height: 100vh;
+            padding-top: 48px;
         }
         /* Sidebar */
         .sidebar {
@@ -62,7 +83,7 @@ HTML_TEMPLATE = """
             border-right: 1px solid #ddd;
             display: flex;
             flex-direction: column;
-            height: 100vh;
+            height: calc(100vh - 48px);
         }
         .sidebar-header {
             padding: 20px;
@@ -115,6 +136,32 @@ HTML_TEMPLATE = """
             font-size: 11px;
         }
         .no-songs { padding: 20px; text-align: center; color: #888; }
+        .song-list-section {
+            padding: 8px 16px 4px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #eee;
+            position: sticky;
+            top: 0;
+        }
+        .lyric-match-snippet {
+            font-size: 11px;
+            color: #666;
+            font-style: italic;
+            margin-top: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .lyric-match-snippet mark {
+            background: #fff3cd;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
 
         /* Main content */
         .main {
@@ -125,8 +172,6 @@ HTML_TEMPLATE = """
         .main-inner {
             max-width: 700px;
         }
-        h1 { color: #2c5530; margin: 0 0 8px 0; }
-        .subtitle { color: #666; margin-bottom: 30px; }
         .card {
             background: white;
             border-radius: 12px;
@@ -355,6 +400,9 @@ HTML_TEMPLATE = """
     </style>
 </head>
 <body>
+    <div class="top-header">
+        <h1>Grass</h1>
+    </div>
     <div class="layout">
         <!-- Sidebar with song list -->
         <div class="sidebar">
@@ -373,9 +421,6 @@ HTML_TEMPLATE = """
         <!-- Main content area -->
         <div class="main">
             <div class="main-inner">
-                <h1>Bluegrass Backing Track Generator</h1>
-                <p class="subtitle">Generate boom-chuck backing tracks from chord progressions</p>
-
                 <div class="card">
                     <div class="tabs">
                         <button class="tab active" onclick="showTab('library')">Selected Song</button>
@@ -411,7 +456,7 @@ HTML_TEMPLATE = """
                             </div>
 
                             <div id="audioRow" class="audio-row" style="display: none;">
-                                <audio id="songAudioPlayer" controls></audio>
+                                <audio id="songAudioPlayer" controls loop></audio>
                                 <a id="songDownloadLink" class="download-link" download>Download</a>
                             </div>
 
@@ -462,7 +507,7 @@ HTML_TEMPLATE = """
 
                     <div class="result" id="result">
                         <strong>Your backing track is ready!</strong>
-                        <audio id="audioPlayer" controls></audio>
+                        <audio id="audioPlayer" controls loop></audio>
                         <a id="downloadLink" class="download-link" download>Download MP3</a>
                     </div>
                 </div>
@@ -487,41 +532,103 @@ HTML_TEMPLATE = """
             try {
                 const response = await fetch('/api/songs');
                 songs = await response.json();
-                renderSongs(songs);
+                renderSongs(songs, []);
             } catch (err) {
                 document.getElementById('songList').innerHTML =
                     '<div class="no-songs">Could not load songs</div>';
             }
         }
 
-        function renderSongs(songList) {
-            const container = document.getElementById('songList');
-            if (songList.length === 0) {
-                container.innerHTML = '<div class="no-songs">No songs found</div>';
-                return;
-            }
-            container.innerHTML = songList.map(song => {
-                const sectionNames = song.sections.map(s => s.name).join(', ');
-                return `
+        function renderSongItem(song, lyricSnippet = null) {
+            const keyDisplay = Array.isArray(song.key) ? song.key.join('/') : (song.key || '?');
+            return `
                 <div class="song-item" onclick="selectSong('${song.id}')" id="song-${song.id}">
                     <div class="song-title">${song.title}</div>
                     <div class="song-meta">
-                        <span class="song-key">${song.key}</span>
-                        <span class="song-type">${song.type}</span>
-                        ${sectionNames ? `<span>Sections: ${sectionNames}</span>` : ''}
+                        <span class="song-key">${keyDisplay}</span>
+                        <span class="song-type">${song.type || ''}</span>
                     </div>
+                    ${lyricSnippet ? `<div class="lyric-match-snippet">${lyricSnippet}</div>` : ''}
                 </div>
-            `}).join('');
+            `;
+        }
+
+        function renderSongs(songList, lyricMatches = []) {
+            const container = document.getElementById('songList');
+            if (songList.length === 0 && lyricMatches.length === 0) {
+                container.innerHTML = '<div class="no-songs">No songs found</div>';
+                return;
+            }
+
+            let html = '';
+
+            // Title/key matches
+            if (songList.length > 0) {
+                html += songList.map(song => renderSongItem(song)).join('');
+            }
+
+            // Lyric matches (separate section)
+            if (lyricMatches.length > 0) {
+                html += '<div class="song-list-section">Lyric Matches</div>';
+                html += lyricMatches.map(match => renderSongItem(match.song, match.snippet)).join('');
+            }
+
+            container.innerHTML = html;
         }
 
         function filterSongs(query) {
-            const q = query.toLowerCase();
-            const filtered = songs.filter(s =>
-                s.title.toLowerCase().includes(q) ||
-                s.key.toLowerCase().includes(q) ||
-                s.type.toLowerCase().includes(q)
-            );
-            renderSongs(filtered);
+            const q = query.toLowerCase().trim();
+
+            if (!q) {
+                // No query - show all songs
+                renderSongs(songs, []);
+                return;
+            }
+
+            // Title matches (also check key)
+            const titleMatches = songs.filter(s => {
+                if (s.title && s.title.toLowerCase().includes(q)) return true;
+                if (!s.key) return false;
+                // Handle key as string or array
+                const keys = Array.isArray(s.key) ? s.key : [s.key];
+                return keys.some(k => k.toLowerCase().includes(q));
+            });
+
+            // Get IDs of title matches to exclude from lyric search
+            const titleMatchIds = new Set(titleMatches.map(s => s.id));
+
+            // Lyric matches (only vocal songs not already in title matches)
+            const lyricMatches = [];
+            for (const song of songs) {
+                if (titleMatchIds.has(song.id)) continue;
+                if (song.type !== 'vocal' || !song.lyrics) continue;
+
+                if (typeof song.lyrics !== 'string') continue;
+                const lyricsLower = song.lyrics.toLowerCase();
+                const idx = lyricsLower.indexOf(q);
+                if (idx !== -1) {
+                    // Extract snippet around the match
+                    const start = Math.max(0, idx - 20);
+                    const end = Math.min(song.lyrics.length, idx + q.length + 30);
+                    let snippet = song.lyrics.substring(start, end)
+                        .replace(/\\n/g, ' ')
+                        .replace(/<[^>]+>/g, '');
+                    if (start > 0) snippet = '...' + snippet;
+                    if (end < song.lyrics.length) snippet = snippet + '...';
+                    // Highlight the match using simple string replacement
+                    const lowerSnippet = snippet.toLowerCase();
+                    const matchIdx = lowerSnippet.indexOf(q);
+                    if (matchIdx !== -1) {
+                        const before = snippet.substring(0, matchIdx);
+                        const match = snippet.substring(matchIdx, matchIdx + q.length);
+                        const after = snippet.substring(matchIdx + q.length);
+                        snippet = before + '<mark>' + match + '</mark>' + after;
+                    }
+                    lyricMatches.push({ song, snippet });
+                }
+            }
+
+            renderSongs(titleMatches, lyricMatches);
         }
 
         const majorKeys = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -531,7 +638,14 @@ HTML_TEMPLATE = """
                                 'F#':6, 'Gb':6, 'G':7, 'G#':8, 'Ab':8, 'A':9, 'A#':10, 'Bb':10, 'B':11};
 
         function isMinorKey(key) {
-            return key && key.endsWith('m') && !key.endsWith('#m') || key.toLowerCase().includes('min');
+            if (!key) return false;
+            const k = Array.isArray(key) ? key[0] : key;
+            return k && k.endsWith('m') && !k.endsWith('#m') || k.toLowerCase().includes('min');
+        }
+
+        function getPrimaryKey(key) {
+            // Get the first key if it's an array, otherwise return the key
+            return Array.isArray(key) ? key[0] : (key || 'C');
         }
 
         function parseChord(chordName) {
@@ -598,7 +712,7 @@ HTML_TEMPLATE = """
             if (!selectedSong) return;
 
             const targetKey = document.getElementById('songKey').value;
-            const originalKey = selectedSong.key;
+            const originalKey = getPrimaryKey(selectedSong.key);
             const semitones = getKeySemitone(targetKey) - getKeySemitone(originalKey);
 
             // Update meta to show transposition
@@ -638,10 +752,11 @@ HTML_TEMPLATE = """
 
             // Populate key selector - only show keys matching major/minor
             const keySelect = document.getElementById('songKey');
-            const isMinor = isMinorKey(selectedSong.key);
+            const primaryKey = getPrimaryKey(selectedSong.key);
+            const isMinor = isMinorKey(primaryKey);
             const keys = isMinor ? minorKeys : majorKeys;
             keySelect.innerHTML = keys.map(key =>
-                `<option value="${key}" ${key === selectedSong.key ? 'selected' : ''}>${key}</option>`
+                `<option value="${key}" ${key === primaryKey ? 'selected' : ''}>${key}</option>`
             ).join('');
 
             // Update title
@@ -700,7 +815,7 @@ HTML_TEMPLATE = """
                 formData.append('tempo', document.getElementById('songTempo').value);
                 formData.append('repeats', document.getElementById('songRepeats').value);
                 formData.append('key', document.getElementById('songKey').value);
-                formData.append('original_key', selectedSong.key);
+                formData.append('original_key', getPrimaryKey(selectedSong.key));
 
                 const response = await fetch('/generate_song', { method: 'POST', body: formData });
                 const data = await response.json();
@@ -861,13 +976,13 @@ def generate():
         mp3_path = OUTPUT_DIR / f"{base_name}.mp3"
 
         # Generate MIDI
-        generate_bluegrass_midi(
+        _, duration = generate_bluegrass_midi(
             full_progression,
             tempo=tempo,
             output_file=str(midi_path)
         )
 
-        # Convert to MP3
+        # Convert to MP3 with exact duration for seamless looping
         soundfont = find_soundfont()
         if not soundfont:
             return jsonify({'success': False, 'error': 'No SoundFont available for audio rendering'})
@@ -875,7 +990,8 @@ def generate():
         success = convert_midi_to_mp3(
             str(midi_path),
             str(mp3_path),
-            soundfont_path=str(soundfont)
+            soundfont_path=str(soundfont),
+            duration=duration
         )
 
         if not success:
@@ -969,13 +1085,13 @@ def generate_song_route():
         mp3_path = OUTPUT_DIR / f"{base_name}.mp3"
 
         # Generate MIDI
-        generate_bluegrass_midi(
+        _, duration = generate_bluegrass_midi(
             full_progression,
             tempo=tempo,
             output_file=str(midi_path)
         )
 
-        # Convert to MP3
+        # Convert to MP3 with exact duration for seamless looping
         soundfont = find_soundfont()
         if not soundfont:
             return jsonify({'success': False, 'error': 'No SoundFont available'})
@@ -983,7 +1099,8 @@ def generate_song_route():
         success = convert_midi_to_mp3(
             str(midi_path),
             str(mp3_path),
-            soundfont_path=str(soundfont)
+            soundfont_path=str(soundfont),
+            duration=duration
         )
 
         if not success:

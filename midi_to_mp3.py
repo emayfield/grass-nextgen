@@ -21,13 +21,14 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-# Default SoundFont location
+# Default SoundFont location - prefer MuseScore_General for better instrument quality
 DEFAULT_SOUNDFONT_DIR = Path(__file__).parent / "soundfonts"
-DEFAULT_SOUNDFONT = DEFAULT_SOUNDFONT_DIR / "GeneralUser_GS.sf2"
+DEFAULT_SOUNDFONT = DEFAULT_SOUNDFONT_DIR / "MuseScore_General.sf2"
+FALLBACK_SOUNDFONT = DEFAULT_SOUNDFONT_DIR / "GeneralUser_GS.sf2"
 
-# URL for a free General MIDI SoundFont (GeneralUser GS - smaller and reliable)
-SOUNDFONT_URL = "https://archive.org/download/generaluser-gs-1.471-soundfont/GeneralUser_GS_v1.471.sf2"
-SOUNDFONT_SIZE_MB = 30  # Approximate size for progress indication
+# URL for a free General MIDI SoundFont (MuseScore General - high quality)
+SOUNDFONT_URL = "https://ftp.osuosl.org/pub/musescore/soundfont/MuseScore_General/MuseScore_General.sf2"
+SOUNDFONT_SIZE_MB = 206  # Approximate size for progress indication
 
 
 def check_dependencies():
@@ -108,9 +109,13 @@ def find_soundfont(specified_path=None):
             print(f"Specified SoundFont not found: {specified_path}")
             return None
 
-    # Check default location
+    # Check default location (MuseScore_General preferred)
     if DEFAULT_SOUNDFONT.exists():
         return DEFAULT_SOUNDFONT
+
+    # Check fallback location (GeneralUser_GS)
+    if FALLBACK_SOUNDFONT.exists():
+        return FALLBACK_SOUNDFONT
 
     # Check common system locations
     common_locations = [
@@ -169,17 +174,33 @@ def midi_to_wav(midi_path, wav_path, soundfont_path, sample_rate=44100):
     return True
 
 
-def wav_to_mp3(wav_path, mp3_path, bitrate="192k"):
-    """Convert WAV to MP3 using ffmpeg."""
+def wav_to_mp3(wav_path, mp3_path, bitrate="192k", trim_to_duration=None):
+    """
+    Convert WAV to MP3 using ffmpeg.
+
+    Args:
+        wav_path: Input WAV file path
+        mp3_path: Output MP3 file path
+        bitrate: MP3 bitrate (default "192k")
+        trim_to_duration: If set, trim audio to this exact duration in seconds
+                          for seamless looping
+    """
     cmd = [
         "ffmpeg",
         "-y",                       # Overwrite output
         "-i", str(wav_path),        # Input file
+    ]
+
+    # Add duration trim if specified (for seamless looping)
+    if trim_to_duration:
+        cmd.extend(["-t", str(trim_to_duration)])
+
+    cmd.extend([
         "-codec:a", "libmp3lame",   # MP3 encoder
         "-b:a", bitrate,            # Bitrate
         "-q:a", "2",                # Quality
         str(mp3_path)               # Output file
-    ]
+    ])
 
     print(f"Converting to MP3...")
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -192,7 +213,8 @@ def wav_to_mp3(wav_path, mp3_path, bitrate="192k"):
 
 
 def convert_midi_to_mp3(midi_path, mp3_path, soundfont_path=None,
-                         sample_rate=44100, bitrate="192k", keep_wav=False):
+                         sample_rate=44100, bitrate="192k", keep_wav=False,
+                         duration=None):
     """
     Convert a MIDI file to MP3.
 
@@ -203,6 +225,7 @@ def convert_midi_to_mp3(midi_path, mp3_path, soundfont_path=None,
         sample_rate: Audio sample rate (default 44100)
         bitrate: MP3 bitrate (default "192k")
         keep_wav: Keep intermediate WAV file (default False)
+        duration: If set, trim audio to this exact duration for seamless looping
 
     Returns:
         True if successful, False otherwise
@@ -236,7 +259,7 @@ def convert_midi_to_mp3(midi_path, mp3_path, soundfont_path=None,
             return False
 
         # WAV -> MP3
-        if not wav_to_mp3(wav_path, mp3_path, bitrate):
+        if not wav_to_mp3(wav_path, mp3_path, bitrate, trim_to_duration=duration):
             return False
 
         print(f"Created: {mp3_path}")
