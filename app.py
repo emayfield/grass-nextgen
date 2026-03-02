@@ -304,6 +304,54 @@ HTML_TEMPLATE = """
             color: #888;
         }
         .select-prompt h3 { color: #666; margin-bottom: 8px; }
+
+        /* Play button */
+        .play-btn {
+            background: #2c5530;
+            color: white;
+            border: none;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            margin-top: 24px;
+            flex-shrink: 0;
+        }
+        .play-btn:hover { background: #1e3d22; }
+        .play-btn:disabled { background: #999; cursor: not-allowed; }
+        .play-btn svg { width: 20px; height: 20px; fill: white; }
+        .play-btn.loading svg { display: none; }
+        .play-btn.loading::after {
+            content: '';
+            width: 20px;
+            height: 20px;
+            border: 2px solid white;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Audio player row */
+        .audio-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding: 12px 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .audio-row audio {
+            flex: 1;
+        }
+        .audio-row .download-link {
+            margin: 0;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -357,6 +405,14 @@ HTML_TEMPLATE = """
                                     <label for="songRepeats">Repeats</label>
                                     <input type="number" id="songRepeats" value="1" min="1" max="8">
                                 </div>
+                                <button type="button" class="play-btn" id="playBtn" onclick="playOrGenerate()" title="Play">
+                                    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                </button>
+                            </div>
+
+                            <div id="audioRow" class="audio-row" style="display: none;">
+                                <audio id="songAudioPlayer" controls></audio>
+                                <a id="songDownloadLink" class="download-link" download>Download</a>
                             </div>
 
                             <div id="songPreview" class="song-preview">
@@ -371,9 +427,6 @@ HTML_TEMPLATE = """
                                 </div>
                             </div>
 
-                            <button class="generate-btn" id="songSubmitBtn" onclick="generateSong()">
-                                Generate Backing Track
-                            </button>
                         </div>
                     </div>
 
@@ -534,10 +587,9 @@ HTML_TEMPLATE = """
         function formatLyrics(lyrics) {
             if (!lyrics) return '';
             // Parse <chorus>...</chorus> tags and wrap in styled spans
-            // Split by verses (double newlines) and handle chorus tags
             let html = lyrics
-                .replace(/<chorus>([\s\S]*?)<\/chorus>/g, '<span class="chorus">$1</span>')
-                .replace(/\n\n/g, '</span><span class="verse">')
+                .replace(/<chorus>([\\s\\S]*?)<\\/chorus>/g, '<span class="chorus">$1</span>')
+                .replace(/\\n\\n/g, '</span><span class="verse">')
                 .trim();
             return '<span class="verse">' + html + '</span>';
         }
@@ -608,20 +660,39 @@ HTML_TEMPLATE = """
                 lyricsSection.style.display = 'none';
             }
 
-            document.getElementById('songSubmitBtn').textContent =
-                `Generate: ${selectedSong.title}`;
+            // Reset audio when song changes
+            clearCachedAudio();
         }
 
-        async function generateSong() {
+        let cachedAudioUrl = null;
+
+        function clearCachedAudio() {
+            cachedAudioUrl = null;
+            document.getElementById('audioRow').style.display = 'none';
+            document.getElementById('songAudioPlayer').src = '';
+        }
+
+        // Clear cache when settings change
+        document.getElementById('songKey').addEventListener('change', clearCachedAudio);
+        document.getElementById('songTempo').addEventListener('change', clearCachedAudio);
+        document.getElementById('songRepeats').addEventListener('change', clearCachedAudio);
+
+        async function playOrGenerate() {
             if (!selectedSong) return;
 
-            const btn = document.getElementById('songSubmitBtn');
-            const loading = document.getElementById('loading');
-            const result = document.getElementById('result');
+            const btn = document.getElementById('playBtn');
+            const audioPlayer = document.getElementById('songAudioPlayer');
+            const audioRow = document.getElementById('audioRow');
 
+            // If we have cached audio, just play it
+            if (cachedAudioUrl) {
+                audioPlayer.play();
+                return;
+            }
+
+            // Generate new audio
             btn.disabled = true;
-            loading.classList.add('show');
-            result.classList.remove('show', 'error');
+            btn.classList.add('loading');
 
             try {
                 const formData = new FormData();
@@ -635,22 +706,22 @@ HTML_TEMPLATE = """
                 const data = await response.json();
 
                 if (data.success) {
-                    document.getElementById('audioPlayer').src = data.audio_url;
-                    document.getElementById('downloadLink').href = data.audio_url;
-                    document.getElementById('downloadLink').textContent = `Download ${data.filename}`;
-                    result.classList.remove('error');
-                    result.classList.add('show');
+                    cachedAudioUrl = data.audio_url;
+                    audioPlayer.src = data.audio_url;
+                    document.getElementById('songDownloadLink').href = data.audio_url;
+                    document.getElementById('songDownloadLink').textContent = 'Download';
+                    audioRow.style.display = 'flex';
+
+                    // Auto-play when loaded
+                    audioPlayer.oncanplay = () => audioPlayer.play();
                 } else {
-                    result.innerHTML = `<strong>Error:</strong> ${data.error}`;
-                    result.classList.add('show', 'error');
+                    alert('Error: ' + data.error);
                 }
             } catch (err) {
-                result.innerHTML = `<strong>Error:</strong> ${err.message}`;
-                result.classList.add('show', 'error');
+                alert('Error: ' + err.message);
             } finally {
                 btn.disabled = false;
-                btn.textContent = `Generate: ${selectedSong.title}`;
-                loading.classList.remove('show');
+                btn.classList.remove('loading');
             }
         }
 
