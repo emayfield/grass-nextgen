@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Generated files
+generated/
+*.mid
+*.mp3
+*.wav
+
+# SoundFonts (large files)
+soundfonts/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
