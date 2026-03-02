@@ -269,6 +269,35 @@ HTML_TEMPLATE = """
         .preview-chords .half-bar { background: #fff3e0; border-color: #f57c00; }
         .preview-chords .rest { background: #eee; color: #999; font-style: italic; }
 
+        /* Lyrics styles */
+        .lyrics-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+        }
+        .lyrics-section h3 {
+            font-size: 14px;
+            color: #2c5530;
+            margin: 0 0 12px 0;
+        }
+        .lyrics-content {
+            font-size: 14px;
+            line-height: 1.8;
+            color: #444;
+            white-space: pre-wrap;
+        }
+        .lyrics-content .chorus {
+            background: #fff8e1;
+            border-left: 3px solid #f9a825;
+            padding: 12px 16px;
+            margin: 12px 0;
+            display: block;
+        }
+        .lyrics-content .verse {
+            padding: 8px 0;
+            display: block;
+        }
+
         .select-prompt {
             text-align: center;
             padding: 40px 20px;
@@ -336,6 +365,10 @@ HTML_TEMPLATE = """
                                     <span id="previewMeta"></span>
                                 </div>
                                 <div id="previewSections"></div>
+                                <div id="lyricsSection" class="lyrics-section" style="display: none;">
+                                    <h3>Lyrics</h3>
+                                    <div id="lyricsContent" class="lyrics-content"></div>
+                                </div>
                             </div>
 
                             <button class="generate-btn" id="songSubmitBtn" onclick="generateSong()">
@@ -498,6 +531,17 @@ HTML_TEMPLATE = """
             }
         }
 
+        function formatLyrics(lyrics) {
+            if (!lyrics) return '';
+            // Parse <chorus>...</chorus> tags and wrap in styled spans
+            // Split by verses (double newlines) and handle chorus tags
+            let html = lyrics
+                .replace(/<chorus>([\s\S]*?)<\/chorus>/g, '<span class="chorus">$1</span>')
+                .replace(/\n\n/g, '</span><span class="verse">')
+                .trim();
+            return '<span class="verse">' + html + '</span>';
+        }
+
         function updateChordPreview() {
             if (!selectedSong) return;
 
@@ -553,6 +597,16 @@ HTML_TEMPLATE = """
 
             // Render chords (will use original key since dropdown is set to original)
             updateChordPreview();
+
+            // Render lyrics for vocal songs
+            const lyricsSection = document.getElementById('lyricsSection');
+            const lyricsContent = document.getElementById('lyricsContent');
+            if (selectedSong.type === 'vocal' && selectedSong.lyrics) {
+                lyricsContent.innerHTML = formatLyrics(selectedSong.lyrics);
+                lyricsSection.style.display = 'block';
+            } else {
+                lyricsSection.style.display = 'none';
+            }
 
             document.getElementById('songSubmitBtn').textContent =
                 `Generate: ${selectedSong.title}`;
@@ -791,7 +845,8 @@ def api_list_songs():
             'title': data.get('title', song_id),
             'key': data.get('key', 'C'),
             'type': data.get('type', 'unknown'),
-            'sections': data.get('sections', [])  # Include full section data
+            'sections': data.get('sections', []),
+            'lyrics': data.get('lyrics', '')  # Include lyrics for vocal songs
         })
 
     return jsonify(sorted(songs, key=lambda s: s['title']))
