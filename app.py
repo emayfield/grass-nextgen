@@ -385,13 +385,6 @@ HTML_TEMPLATE = """
         }
         button[type="submit"]:hover, .generate-btn:hover { background: #1e3d22; }
         button:disabled { background: #999; cursor: not-allowed; }
-        .download-link {
-            display: inline-block;
-            color: #2c5530;
-            text-decoration: none;
-            font-weight: 600;
-        }
-        .download-link:hover { text-decoration: underline; }
 
         /* Tempo slider */
         .tempo-control {
@@ -515,10 +508,6 @@ HTML_TEMPLATE = """
         .track-controls .play-btn {
             margin-top: 0;
         }
-        .preview-header .audio-row {
-            width: 100%;
-            margin-top: 8px;
-        }
         .preview-section { margin-bottom: 10px; }
         .preview-section-name {
             font-weight: 600;
@@ -554,6 +543,13 @@ HTML_TEMPLATE = """
             width: calc(12.5% - 3px);
         }
         .preview-chords .rest { background: #eee; color: #999; font-style: italic; }
+        .preview-chords .chord.playing {
+            background: #2c5530;
+            color: white;
+            border-color: #2c5530;
+            transform: scale(1.05);
+            transition: all 0.1s ease;
+        }
 
         /* Lyrics styles */
         .lyrics-section {
@@ -622,22 +618,6 @@ HTML_TEMPLATE = """
         }
 
         /* Audio player row */
-        .audio-row {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 20px;
-            padding: 12px 16px;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        .audio-row audio {
-            flex: 1;
-        }
-        .audio-row .download-link {
-            margin: 0;
-            white-space: nowrap;
-        }
     </style>
 </head>
 <body>
@@ -697,12 +677,10 @@ HTML_TEMPLATE = """
                                     <button type="button" class="tempo-btn" onclick="adjustTempo('custom', 5)">+5</button>
                                 </div>
                                 <button type="button" class="play-btn" id="customPlayBtn" onclick="playCustom()" title="Play">
-                                    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    <svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    <svg class="icon-stop" viewBox="0 0 24 24" style="display:none;"><rect x="6" y="6" width="12" height="12"/></svg>
                                 </button>
-                            </div>
-                            <div id="customAudioRow" class="audio-row" style="display: none;">
-                                <audio id="customAudioPlayer" controls loop></audio>
-                                <a id="customDownloadLink" class="download-link" download>Download</a>
+                                <audio id="customAudioPlayer" loop style="display:none;"></audio>
                             </div>
                         </div>
 
@@ -735,12 +713,10 @@ HTML_TEMPLATE = """
                                         <button type="button" class="tempo-btn" onclick="adjustTempo('song', 5)">+5</button>
                                     </div>
                                     <button type="button" class="play-btn" id="playBtn" onclick="playOrGenerate()" title="Play">
-                                        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                        <svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                        <svg class="icon-stop" viewBox="0 0 24 24" style="display:none;"><rect x="6" y="6" width="12" height="12"/></svg>
                                     </button>
-                                </div>
-                                <div id="audioRow" class="audio-row" style="display: none;">
-                                    <audio id="songAudioPlayer" controls loop></audio>
-                                    <a id="songDownloadLink" class="download-link" download>Download</a>
+                                    <audio id="songAudioPlayer" loop style="display:none;"></audio>
                                 </div>
                             </div>
 
@@ -828,8 +804,11 @@ HTML_TEMPLATE = """
             document.getElementById('customSongEditor').style.display = 'block';
 
             // Reset audio
-            document.getElementById('customAudioRow').style.display = 'none';
+            const customAudio = document.getElementById('customAudioPlayer');
+            customAudio.pause();
+            customAudio.src = '';
             customCachedAudio = null;
+            setPlayButtonState(document.getElementById('customPlayBtn'), false);
         }
 
         let customCachedAudio = null;
@@ -837,17 +816,104 @@ HTML_TEMPLATE = """
         // Clear custom cache when inputs change
         function clearCustomCache() {
             customCachedAudio = null;
-            document.getElementById('customAudioRow').style.display = 'none';
+            const customAudio = document.getElementById('customAudioPlayer');
+            customAudio.oncanplay = null;
+            customAudio.pause();
+            customAudio.src = '';
+            setPlayButtonState(document.getElementById('customPlayBtn'), false);
+        }
+
+        function setPlayButtonState(btn, isPlaying) {
+            const playIcon = btn.querySelector('.icon-play');
+            const stopIcon = btn.querySelector('.icon-stop');
+            if (isPlaying) {
+                playIcon.style.display = 'none';
+                stopIcon.style.display = 'block';
+                btn.title = 'Stop';
+            } else {
+                playIcon.style.display = 'block';
+                stopIcon.style.display = 'none';
+                btn.title = 'Play';
+            }
+        }
+
+        // Chord highlighting during playback
+        let highlightAnimationId = null;
+        let currentHighlightedBar = -1;
+
+        function getBarDuration() {
+            // Bar duration in seconds = 60 / tempo (in cut-time bluegrass)
+            const tempo = parseInt(document.getElementById('songTempo').value) || 110;
+            return 60 / tempo;
+        }
+
+        function highlightChordAtTime(currentTime) {
+            const barDuration = getBarDuration();
+            let elapsed = 0;
+            let targetBar = -1;
+
+            // Find which bar we're in based on cumulative time
+            for (let i = 0; i < chordTimingMap.length; i++) {
+                const chordDuration = chordTimingMap[i].duration * barDuration;
+                if (currentTime >= elapsed && currentTime < elapsed + chordDuration) {
+                    targetBar = chordTimingMap[i].barIndex;
+                    break;
+                }
+                elapsed += chordDuration;
+            }
+
+            // Only update DOM if bar changed
+            if (targetBar !== currentHighlightedBar) {
+                // Remove previous highlight
+                document.querySelectorAll('.preview-chords .chord.playing').forEach(el => {
+                    el.classList.remove('playing');
+                });
+                // Add new highlight
+                if (targetBar >= 0) {
+                    const chordEl = document.querySelector(`.preview-chords .chord[data-bar="${targetBar}"]`);
+                    if (chordEl) chordEl.classList.add('playing');
+                }
+                currentHighlightedBar = targetBar;
+            }
+        }
+
+        function startChordHighlighting(audioPlayer) {
+            function animate() {
+                if (audioPlayer.paused) return;
+                highlightChordAtTime(audioPlayer.currentTime);
+                highlightAnimationId = requestAnimationFrame(animate);
+            }
+            animate();
+        }
+
+        function stopChordHighlighting() {
+            if (highlightAnimationId) {
+                cancelAnimationFrame(highlightAnimationId);
+                highlightAnimationId = null;
+            }
+            currentHighlightedBar = -1;
+            document.querySelectorAll('.preview-chords .chord.playing').forEach(el => {
+                el.classList.remove('playing');
+            });
         }
 
         async function playCustom() {
             const btn = document.getElementById('customPlayBtn');
             const audioPlayer = document.getElementById('customAudioPlayer');
-            const audioRow = document.getElementById('customAudioRow');
+
+            // If playing, stop it
+            if (!audioPlayer.paused) {
+                audioPlayer.oncanplay = null;
+                audioPlayer.pause();
+                audioPlayer.currentTime = 0;
+                setPlayButtonState(btn, false);
+                return;
+            }
 
             // If cached, just play
             if (customCachedAudio) {
                 audioPlayer.play();
+                setPlayButtonState(btn, true);
                 return;
             }
 
@@ -872,9 +938,10 @@ HTML_TEMPLATE = """
                 if (data.success) {
                     customCachedAudio = data.audio_url;
                     audioPlayer.src = data.audio_url;
-                    document.getElementById('customDownloadLink').href = data.audio_url;
-                    audioRow.style.display = 'flex';
-                    audioPlayer.oncanplay = () => audioPlayer.play();
+                    audioPlayer.oncanplay = () => {
+                        audioPlayer.play();
+                        setPlayButtonState(btn, true);
+                    };
                 } else {
                     alert('Error: ' + data.error);
                 }
@@ -1049,19 +1116,20 @@ HTML_TEMPLATE = """
             return transposeChord(item, semitones);
         }
 
-        function formatChord(chord) {
+        function formatChord(chord, barIndex) {
+            const dataAttr = `data-bar="${barIndex}"`;
             if (chord === 'rest') {
-                return '<span class="chord rest">rest</span>';
+                return `<span class="chord rest" ${dataAttr}>rest</span>`;
             } else if (Array.isArray(chord)) {
                 if (chord.length === 1) {
                     // Half bar - shorter width, no brackets
-                    return `<span class="chord half-bar">${chord[0]}</span>`;
+                    return `<span class="chord half-bar" ${dataAttr}>${chord[0]}</span>`;
                 } else {
                     // Split bar - two chords spaced apart
-                    return `<span class="chord split-bar"><span>${chord[0]}</span><span>${chord[1]}</span></span>`;
+                    return `<span class="chord split-bar" ${dataAttr}><span>${chord[0]}</span><span>${chord[1]}</span></span>`;
                 }
             } else {
-                return `<span class="chord">${chord}</span>`;
+                return `<span class="chord" ${dataAttr}>${chord}</span>`;
             }
         }
 
@@ -1089,6 +1157,9 @@ HTML_TEMPLATE = """
             return '<span class="verse">' + html + '</span>';
         }
 
+        // Store timing info for chord highlighting
+        let chordTimingMap = [];
+
         function updateChordPreview() {
             if (!selectedSong) return;
 
@@ -1102,17 +1173,32 @@ HTML_TEMPLATE = """
                 : '';
             document.getElementById('previewMeta').textContent = transposedLabel;
 
-            // Render sections with transposed chords
+            // Build timing map and render sections
+            chordTimingMap = [];
+            let barIndex = 0;
+
             const sectionsHtml = selectedSong.sections.map(section => {
-                const chordHtml = section.chords.map(chord => {
-                    const transposed = transposeChordItem(chord, semitones);
-                    return formatChord(transposed);
-                }).join(' ');
-                const repeatLabel = section.repeats > 1 ? ` (x${section.repeats})` : '';
+                const repeats = section.repeats || 1;
+                let sectionChordHtml = '';
+
+                for (let r = 0; r < repeats; r++) {
+                    sectionChordHtml += section.chords.map(chord => {
+                        const transposed = transposeChordItem(chord, semitones);
+                        const html = formatChord(transposed, barIndex);
+                        // Track bar duration: half-bar = 0.5, others = 1
+                        const duration = (Array.isArray(chord) && chord.length === 1) ? 0.5 : 1;
+                        chordTimingMap.push({ barIndex, duration });
+                        barIndex++;
+                        return html;
+                    }).join(' ');
+                    if (r < repeats - 1) sectionChordHtml += ' ';
+                }
+
+                const repeatLabel = repeats > 1 ? ` (x${repeats})` : '';
                 return `
                     <div class="preview-section">
                         <div class="preview-section-name">${section.name}${repeatLabel}</div>
-                        <div class="preview-chords">${chordHtml}</div>
+                        <div class="preview-chords">${sectionChordHtml}</div>
                     </div>
                 `;
             }).join('');
@@ -1197,8 +1283,12 @@ HTML_TEMPLATE = """
 
         function clearCachedAudio() {
             cachedAudioUrl = null;
-            document.getElementById('audioRow').style.display = 'none';
-            document.getElementById('songAudioPlayer').src = '';
+            const audioPlayer = document.getElementById('songAudioPlayer');
+            audioPlayer.oncanplay = null;
+            audioPlayer.pause();
+            audioPlayer.src = '';
+            setPlayButtonState(document.getElementById('playBtn'), false);
+            stopChordHighlighting();
         }
 
         // Clear cache when settings change
@@ -1210,11 +1300,22 @@ HTML_TEMPLATE = """
 
             const btn = document.getElementById('playBtn');
             const audioPlayer = document.getElementById('songAudioPlayer');
-            const audioRow = document.getElementById('audioRow');
+
+            // If playing, stop it
+            if (!audioPlayer.paused) {
+                audioPlayer.oncanplay = null;
+                audioPlayer.pause();
+                audioPlayer.currentTime = 0;
+                setPlayButtonState(btn, false);
+                stopChordHighlighting();
+                return;
+            }
 
             // If we have cached audio, just play it
             if (cachedAudioUrl) {
                 audioPlayer.play();
+                setPlayButtonState(btn, true);
+                startChordHighlighting(audioPlayer);
                 return;
             }
 
@@ -1236,12 +1337,13 @@ HTML_TEMPLATE = """
                 if (data.success) {
                     cachedAudioUrl = data.audio_url;
                     audioPlayer.src = data.audio_url;
-                    document.getElementById('songDownloadLink').href = data.audio_url;
-                    document.getElementById('songDownloadLink').textContent = 'Download';
-                    audioRow.style.display = 'flex';
 
                     // Auto-play when loaded
-                    audioPlayer.oncanplay = () => audioPlayer.play();
+                    audioPlayer.oncanplay = () => {
+                        audioPlayer.play();
+                        setPlayButtonState(btn, true);
+                        startChordHighlighting(audioPlayer);
+                    };
                 } else {
                     alert('Error: ' + data.error);
                 }
