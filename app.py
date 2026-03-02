@@ -120,30 +120,42 @@ HTML_TEMPLATE = """
             min-height: 0;
         }
         .song-item {
-            padding: 12px 20px;
+            padding: 8px 12px;
             border-bottom: 1px solid #eee;
             cursor: pointer;
             transition: background 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         .song-item:hover { background: #f5f5f5; }
         .song-item.selected { background: #e8f5e9; }
-        .song-title { font-weight: 600; color: #333; font-size: 14px; }
-        .song-meta { font-size: 12px; color: #888; margin-top: 4px; }
+        .song-title {
+            font-weight: 500;
+            color: #333;
+            font-size: 13px;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
         .song-key {
-            display: inline-block;
             background: #2c5530;
             color: white;
             padding: 2px 6px;
             border-radius: 4px;
-            font-size: 11px;
-            margin-right: 6px;
+            font-size: 10px;
+            font-weight: 600;
+            flex-shrink: 0;
         }
-        .song-type {
-            display: inline-block;
-            background: #eee;
+        .song-vocal {
+            background: #e3f2fd;
+            color: #1565c0;
             padding: 2px 6px;
             border-radius: 4px;
-            font-size: 11px;
+            font-size: 10px;
+            font-weight: 600;
+            flex-shrink: 0;
         }
         .no-songs { padding: 20px; text-align: center; color: #888; }
 
@@ -209,6 +221,84 @@ HTML_TEMPLATE = """
             color: #888;
             margin: -8px 0 12px;
         }
+
+        /* Two-column layout for chords/lyrics and demos */
+        .song-columns {
+            display: flex;
+            gap: 24px;
+        }
+        .song-col-left {
+            flex: 1;
+            min-width: 0;
+        }
+        .song-col-right {
+            width: 360px;
+            flex-shrink: 0;
+        }
+        .song-col-right.hidden {
+            display: none;
+        }
+
+        /* Mobile tabs - hidden on wide screens */
+        .mobile-tabs {
+            display: none;
+            gap: 0;
+            margin-bottom: 16px;
+            border-bottom: 2px solid #ddd;
+        }
+        .mobile-tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            color: #666;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+        }
+        .mobile-tab:hover { color: #2c5530; }
+        .mobile-tab.active { color: #2c5530; border-bottom-color: #2c5530; }
+
+        /* YouTube demo section */
+        .demo-section h3 {
+            font-size: 14px;
+            color: #2c5530;
+            margin: 0 0 12px 0;
+        }
+        .demo-videos {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .demo-video iframe {
+            width: 100%;
+            aspect-ratio: 16/9;
+            border: none;
+            border-radius: 8px;
+        }
+        .no-demos {
+            color: #888;
+            font-size: 13px;
+            font-style: italic;
+        }
+
+        /* Responsive: switch to tabs on narrow screens */
+        @media (max-width: 900px) {
+            .song-columns {
+                flex-direction: column;
+            }
+            .song-col-right {
+                width: 100%;
+            }
+            .mobile-tabs {
+                display: flex;
+            }
+            .song-col-left.hidden,
+            .song-col-right.hidden {
+                display: none;
+            }
+        }
         .song-list-section {
             padding: 8px 16px 4px;
             font-size: 11px;
@@ -221,11 +311,15 @@ HTML_TEMPLATE = """
             position: sticky;
             top: 0;
         }
+        .song-item.has-snippet {
+            flex-wrap: wrap;
+        }
         .lyric-match-snippet {
+            width: 100%;
             font-size: 11px;
             color: #666;
             font-style: italic;
-            margin-top: 4px;
+            margin-top: 2px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -240,17 +334,11 @@ HTML_TEMPLATE = """
         .main {
             flex: 1;
             overflow-y: auto;
-            padding: 40px;
+            padding: 24px 32px;
+            background: white;
         }
         .main-inner {
-            max-width: 700px;
-        }
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
+            max-width: 100%;
         }
         label {
             display: block;
@@ -294,6 +382,67 @@ HTML_TEMPLATE = """
             font-weight: 600;
         }
         .download-link:hover { text-decoration: underline; }
+
+        /* Tempo slider */
+        .tempo-control {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .tempo-slider-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tempo-slider {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #ddd;
+            border-radius: 3px;
+            outline: none;
+        }
+        .tempo-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #2c5530;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .tempo-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #2c5530;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+        .tempo-value {
+            min-width: 60px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .tempo-btns {
+            display: flex;
+            gap: 4px;
+        }
+        .tempo-btn {
+            padding: 4px 8px;
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #555;
+        }
+        .tempo-btn:hover {
+            background: #e0e0e0;
+        }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* Song preview styles */
@@ -456,7 +605,6 @@ HTML_TEMPLATE = """
         <!-- Main content area -->
         <div class="main">
             <div class="main-inner">
-                <div class="card">
                     <div id="noSongSelected" class="select-prompt">
                         <h3>No song selected</h3>
                         <p>Select a song from the sidebar to get started</p>
@@ -483,10 +631,19 @@ HTML_TEMPLATE = """
                                     <option value="Em">Em</option>
                                 </select>
                             </div>
-                            <div>
-                                <label for="customTempo">Tempo (BPM)</label>
-                                <input type="number" id="customTempo" value="110" min="60" max="200"
-                                       onchange="clearCustomCache()">
+                            <div class="tempo-control">
+                                <label>Tempo</label>
+                                <div class="tempo-slider-row">
+                                    <input type="range" id="customTempo" class="tempo-slider"
+                                           value="110" min="60" max="160" oninput="updateTempoDisplay('custom'); clearCustomCache()">
+                                    <span id="customTempoValue" class="tempo-value">110</span>
+                                </div>
+                                <div class="tempo-btns">
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('custom', -5)">-5</button>
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('custom', -1)">-1</button>
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('custom', 1)">+1</button>
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('custom', 5)">+5</button>
+                                </div>
                             </div>
                             <div>
                                 <label for="customRepeats">Repeats</label>
@@ -521,9 +678,19 @@ HTML_TEMPLATE = """
                                     <option value="">Select a song first</option>
                                 </select>
                             </div>
-                            <div>
-                                <label for="songTempo">Tempo (BPM)</label>
-                                <input type="number" id="songTempo" value="110" min="60" max="200">
+                            <div class="tempo-control">
+                                <label>Tempo</label>
+                                <div class="tempo-slider-row">
+                                    <input type="range" id="songTempo" class="tempo-slider"
+                                           value="110" min="60" max="160" oninput="updateTempoDisplay('song')">
+                                    <span id="songTempoValue" class="tempo-value">110</span>
+                                </div>
+                                <div class="tempo-btns">
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('song', -5)">-5</button>
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('song', -1)">-1</button>
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('song', 1)">+1</button>
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('song', 5)">+5</button>
+                                </div>
                             </div>
                             <div>
                                 <label for="songRepeats">Repeats</label>
@@ -544,14 +711,33 @@ HTML_TEMPLATE = """
                                 <strong id="previewTitle"></strong>
                                 <span id="previewMeta"></span>
                             </div>
-                            <div id="previewSections"></div>
-                            <div id="lyricsSection" class="lyrics-section" style="display: none;">
-                                <h3>Lyrics</h3>
-                                <div id="lyricsContent" class="lyrics-content"></div>
+
+                            <!-- Mobile tabs (hidden on wide screens) -->
+                            <div class="mobile-tabs" id="mobileTabs">
+                                <button class="mobile-tab active" onclick="showMobileTab('chords')">Chords/Lyrics</button>
+                                <button class="mobile-tab" onclick="showMobileTab('demos')">Demos</button>
+                            </div>
+
+                            <div class="song-columns">
+                                <!-- Left column: Chords & Lyrics -->
+                                <div class="song-col-left" id="chordsLyricsCol">
+                                    <div id="previewSections"></div>
+                                    <div id="lyricsSection" class="lyrics-section" style="display: none;">
+                                        <h3>Lyrics</h3>
+                                        <div id="lyricsContent" class="lyrics-content"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Right column: Demo Videos -->
+                                <div class="song-col-right" id="demosCol">
+                                    <div id="demoSection" class="demo-section">
+                                        <h3>Demo Videos</h3>
+                                        <div id="demoVideos" class="demo-videos"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
             </div>
         </div>
     </div>
@@ -559,6 +745,44 @@ HTML_TEMPLATE = """
     <script>
         let songs = [];
         let selectedSong = null;
+
+        // Tempo slider controls
+        function updateTempoDisplay(prefix) {
+            const slider = document.getElementById(prefix + 'Tempo');
+            const display = document.getElementById(prefix + 'TempoValue');
+            display.textContent = slider.value;
+        }
+
+        function adjustTempo(prefix, delta) {
+            const slider = document.getElementById(prefix + 'Tempo');
+            const newVal = Math.max(60, Math.min(160, parseInt(slider.value) + delta));
+            slider.value = newVal;
+            updateTempoDisplay(prefix);
+            if (prefix === 'song') {
+                clearCachedAudio();
+            } else {
+                clearCustomCache();
+            }
+        }
+
+        // Mobile tab switching for chords/demos
+        function showMobileTab(tab) {
+            const chordsCol = document.getElementById('chordsLyricsCol');
+            const demosCol = document.getElementById('demosCol');
+            const tabs = document.querySelectorAll('.mobile-tab');
+
+            tabs.forEach(t => t.classList.remove('active'));
+
+            if (tab === 'chords') {
+                chordsCol.classList.remove('hidden');
+                demosCol.classList.add('hidden');
+                tabs[0].classList.add('active');
+            } else {
+                chordsCol.classList.add('hidden');
+                demosCol.classList.remove('hidden');
+                tabs[1].classList.add('active');
+            }
+        }
 
         // Create custom song
         function createCustomSong() {
@@ -644,14 +868,22 @@ HTML_TEMPLATE = """
 
         function renderSongItem(song, lyricSnippet = null) {
             const keyDisplay = Array.isArray(song.key) ? song.key.join('/') : (song.key || '?');
+            const isVocal = song.type === 'vocal';
+            if (lyricSnippet) {
+                return `
+                    <div class="song-item has-snippet" onclick="selectSong('${song.id}')" id="song-${song.id}">
+                        <span class="song-title">${song.title}</span>
+                        ${isVocal ? '<span class="song-vocal">vocal</span>' : ''}
+                        <span class="song-key">${keyDisplay}</span>
+                        <div class="lyric-match-snippet">${lyricSnippet}</div>
+                    </div>
+                `;
+            }
             return `
                 <div class="song-item" onclick="selectSong('${song.id}')" id="song-${song.id}">
-                    <div class="song-title">${song.title}</div>
-                    <div class="song-meta">
-                        <span class="song-key">${keyDisplay}</span>
-                        <span class="song-type">${song.type || ''}</span>
-                    </div>
-                    ${lyricSnippet ? `<div class="lyric-match-snippet">${lyricSnippet}</div>` : ''}
+                    <span class="song-title">${song.title}</span>
+                    ${isVocal ? '<span class="song-vocal">vocal</span>' : ''}
+                    <span class="song-key">${keyDisplay}</span>
                 </div>
             `;
         }
@@ -801,6 +1033,20 @@ HTML_TEMPLATE = """
             }
         }
 
+        function extractYouTubeId(url) {
+            if (!url) return null;
+            // Handle youtu.be/VIDEO_ID format
+            let match = url.match(/youtu\\.be\\/([a-zA-Z0-9_-]+)/);
+            if (match) return match[1];
+            // Handle youtube.com/watch?v=VIDEO_ID format
+            match = url.match(/youtube\\.com\\/watch\\?v=([a-zA-Z0-9_-]+)/);
+            if (match) return match[1];
+            // Handle youtube.com/embed/VIDEO_ID format
+            match = url.match(/youtube\\.com\\/embed\\/([a-zA-Z0-9_-]+)/);
+            if (match) return match[1];
+            return null;
+        }
+
         function formatLyrics(lyrics) {
             if (!lyrics) return '';
             // Parse <chorus>...</chorus> tags and wrap in styled spans
@@ -876,6 +1122,41 @@ HTML_TEMPLATE = """
                 lyricsSection.style.display = 'none';
             }
 
+            // Render demo videos
+            const demoVideos = document.getElementById('demoVideos');
+            const demosCol = document.getElementById('demosCol');
+            const mobileTabs = document.getElementById('mobileTabs');
+            const chordsCol = document.getElementById('chordsLyricsCol');
+            const allDemos = [...(selectedSong.featured_demo || []), ...(selectedSong.demo || [])];
+
+            const hasDemos = allDemos.length > 0;
+
+            if (hasDemos) {
+                demoVideos.innerHTML = allDemos.map(url => {
+                    const videoId = extractYouTubeId(url);
+                    if (!videoId) return '';
+                    return `<div class="demo-video">
+                        <iframe src="https://www.youtube.com/embed/${videoId}"
+                                allowfullscreen loading="lazy"></iframe>
+                    </div>`;
+                }).join('');
+            }
+
+            // Show/hide demos column and tabs based on whether demos exist
+            demosCol.style.display = hasDemos ? '' : 'none';
+            mobileTabs.style.display = hasDemos && window.innerWidth <= 900 ? 'flex' : '';
+
+            // Reset mobile tabs to show chords first
+            chordsCol.classList.remove('hidden');
+            if (window.innerWidth <= 900) {
+                demosCol.classList.add('hidden');
+            } else {
+                demosCol.classList.remove('hidden');
+            }
+            document.querySelectorAll('.mobile-tab').forEach((t, i) => {
+                t.classList.toggle('active', i === 0);
+            });
+
             // Reset audio when song changes
             clearCachedAudio();
         }
@@ -890,7 +1171,7 @@ HTML_TEMPLATE = """
 
         // Clear cache when settings change
         document.getElementById('songKey').addEventListener('change', clearCachedAudio);
-        document.getElementById('songTempo').addEventListener('change', clearCachedAudio);
+        document.getElementById('songTempo').addEventListener('input', clearCachedAudio);
         document.getElementById('songRepeats').addEventListener('change', clearCachedAudio);
 
         async function playOrGenerate() {
@@ -1102,7 +1383,9 @@ def api_list_songs():
             'key': data.get('key', 'C'),
             'type': data.get('type', 'unknown'),
             'sections': data.get('sections', []),
-            'lyrics': data.get('lyrics', '')  # Include lyrics for vocal songs
+            'lyrics': data.get('lyrics', ''),  # Include lyrics for vocal songs
+            'demo': data.get('demo', []),  # YouTube demo videos
+            'featured_demo': data.get('featured_demo', [])  # Featured demo videos (shown first)
         })
 
     return jsonify(sorted(songs, key=lambda s: s['title']))
