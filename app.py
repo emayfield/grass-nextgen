@@ -198,9 +198,19 @@ HTML_TEMPLATE = """
             outline: none;
             border-color: #2c5530;
         }
-        .custom-song-editor .title-input {
-            font-size: 18px;
+        .preview-header .title-input {
+            font-size: 20px;
             font-weight: 600;
+            color: #2c5530;
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 4px 0;
+            background: transparent;
+            outline: none;
+            min-width: 200px;
+        }
+        .preview-header .title-input:focus {
+            border-bottom-color: #2c5530;
         }
         .custom-song-editor .chords-input {
             font-family: 'SF Mono', Monaco, 'Courier New', monospace;
@@ -346,21 +356,21 @@ HTML_TEMPLATE = """
             margin-bottom: 8px;
             color: #444;
         }
-        input[type="text"], input[type="number"], select {
+        .custom-song-editor input[type="text"],
+        .custom-song-editor textarea {
             width: 100%;
             padding: 12px 16px;
             border: 2px solid #ddd;
             border-radius: 8px;
-            font-size: 16px;
-            margin-bottom: 20px;
+            font-size: 14px;
+            margin-bottom: 16px;
             transition: border-color 0.2s;
         }
-        input:focus, select:focus {
+        .custom-song-editor input:focus,
+        .custom-song-editor textarea:focus {
             outline: none;
             border-color: #2c5530;
         }
-        .row { display: flex; gap: 20px; }
-        .row > div { flex: 1; }
         button[type="submit"], .generate-btn {
             background: #2c5530;
             color: white;
@@ -454,12 +464,61 @@ HTML_TEMPLATE = """
             margin-bottom: 20px;
         }
         .preview-header {
-            margin-bottom: 12px;
-            padding-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
             border-bottom: 1px solid #ddd;
+            flex-wrap: wrap;
         }
-        .preview-header strong { font-size: 16px; }
-        .preview-header span { color: #666; margin-left: 10px; font-size: 14px; }
+        .preview-header .song-title-main {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2c5530;
+        }
+        .preview-header .track-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #f5f7f5;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 8px 14px;
+            margin-left: auto;
+        }
+        .preview-header .key-select {
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c5530;
+            background: white;
+        }
+        .preview-header .key-meta {
+            font-size: 11px;
+            color: #888;
+        }
+        .preview-header .tempo-control {
+            flex-direction: row;
+            align-items: center;
+            gap: 8px;
+        }
+        .preview-header .tempo-slider {
+            width: 100px;
+        }
+        .preview-header .tempo-btns {
+            display: flex;
+            gap: 2px;
+        }
+        .track-controls .play-btn {
+            margin-top: 0;
+        }
+        .preview-header .audio-row {
+            width: 100%;
+            margin-top: 8px;
+        }
         .preview-section { margin-bottom: 10px; }
         .preview-section-name {
             font-weight: 600;
@@ -612,13 +671,11 @@ HTML_TEMPLATE = """
 
                     <!-- Custom song editor -->
                     <div id="customSongEditor" class="custom-song-editor" style="display: none;">
-                        <input type="text" id="customTitle" class="title-input"
-                               placeholder="Song Title" value="Custom Song">
-
-                        <div class="row">
-                            <div>
-                                <label for="customKey">Key</label>
-                                <select id="customKey" onchange="clearCustomCache()">
+                        <div class="preview-header">
+                            <input type="text" id="customTitle" class="song-title-main title-input"
+                                   placeholder="Song Title" value="Custom Song">
+                            <div class="track-controls">
+                                <select id="customKey" class="key-select" onchange="clearCustomCache()">
                                     <option value="C">C</option>
                                     <option value="D">D</option>
                                     <option value="E">E</option>
@@ -630,34 +687,23 @@ HTML_TEMPLATE = """
                                     <option value="Dm">Dm</option>
                                     <option value="Em">Em</option>
                                 </select>
-                            </div>
-                            <div class="tempo-control">
-                                <label>Tempo</label>
-                                <div class="tempo-slider-row">
+                                <div class="tempo-control">
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('custom', -5)">-5</button>
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('custom', -1)">-1</button>
                                     <input type="range" id="customTempo" class="tempo-slider"
                                            value="110" min="60" max="160" oninput="updateTempoDisplay('custom'); clearCustomCache()">
                                     <span id="customTempoValue" class="tempo-value">110</span>
-                                </div>
-                                <div class="tempo-btns">
-                                    <button type="button" class="tempo-btn" onclick="adjustTempo('custom', -5)">-5</button>
-                                    <button type="button" class="tempo-btn" onclick="adjustTempo('custom', -1)">-1</button>
                                     <button type="button" class="tempo-btn" onclick="adjustTempo('custom', 1)">+1</button>
                                     <button type="button" class="tempo-btn" onclick="adjustTempo('custom', 5)">+5</button>
                                 </div>
+                                <button type="button" class="play-btn" id="customPlayBtn" onclick="playCustom()" title="Play">
+                                    <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                </button>
                             </div>
-                            <div>
-                                <label for="customRepeats">Repeats</label>
-                                <input type="number" id="customRepeats" value="2" min="1" max="8"
-                                       onchange="clearCustomCache()">
+                            <div id="customAudioRow" class="audio-row" style="display: none;">
+                                <audio id="customAudioPlayer" controls loop></audio>
+                                <a id="customDownloadLink" class="download-link" download>Download</a>
                             </div>
-                            <button type="button" class="play-btn" id="customPlayBtn" onclick="playCustom()" title="Play">
-                                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                            </button>
-                        </div>
-
-                        <div id="customAudioRow" class="audio-row" style="display: none;">
-                            <audio id="customAudioPlayer" controls loop></audio>
-                            <a id="customDownloadLink" class="download-link" download>Download</a>
                         </div>
 
                         <label for="customChords">Chord Progression</label>
@@ -671,45 +717,31 @@ HTML_TEMPLATE = """
                     </div>
 
                     <div id="songControls" style="display: none;">
-                        <div class="row">
-                            <div>
-                                <label for="songKey">Key</label>
-                                <select id="songKey" onchange="updateChordPreview()">
-                                    <option value="">Select a song first</option>
-                                </select>
-                            </div>
-                            <div class="tempo-control">
-                                <label>Tempo</label>
-                                <div class="tempo-slider-row">
-                                    <input type="range" id="songTempo" class="tempo-slider"
-                                           value="110" min="60" max="160" oninput="updateTempoDisplay('song')">
-                                    <span id="songTempoValue" class="tempo-value">110</span>
-                                </div>
-                                <div class="tempo-btns">
-                                    <button type="button" class="tempo-btn" onclick="adjustTempo('song', -5)">-5</button>
-                                    <button type="button" class="tempo-btn" onclick="adjustTempo('song', -1)">-1</button>
-                                    <button type="button" class="tempo-btn" onclick="adjustTempo('song', 1)">+1</button>
-                                    <button type="button" class="tempo-btn" onclick="adjustTempo('song', 5)">+5</button>
-                                </div>
-                            </div>
-                            <div>
-                                <label for="songRepeats">Repeats</label>
-                                <input type="number" id="songRepeats" value="1" min="1" max="8">
-                            </div>
-                            <button type="button" class="play-btn" id="playBtn" onclick="playOrGenerate()" title="Play">
-                                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                            </button>
-                        </div>
-
-                        <div id="audioRow" class="audio-row" style="display: none;">
-                            <audio id="songAudioPlayer" controls loop></audio>
-                            <a id="songDownloadLink" class="download-link" download>Download</a>
-                        </div>
-
                         <div id="songPreview" class="song-preview">
                             <div class="preview-header">
-                                <strong id="previewTitle"></strong>
-                                <span id="previewMeta"></span>
+                                <span id="previewTitle" class="song-title-main"></span>
+                                <span id="previewMeta" class="key-meta"></span>
+                                <div class="track-controls">
+                                    <select id="songKey" class="key-select" onchange="updateChordPreview()">
+                                        <option value="">Key</option>
+                                    </select>
+                                    <div class="tempo-control">
+                                        <button type="button" class="tempo-btn" onclick="adjustTempo('song', -5)">-5</button>
+                                        <button type="button" class="tempo-btn" onclick="adjustTempo('song', -1)">-1</button>
+                                        <input type="range" id="songTempo" class="tempo-slider"
+                                               value="110" min="60" max="160" oninput="updateTempoDisplay('song')">
+                                        <span id="songTempoValue" class="tempo-value">110</span>
+                                        <button type="button" class="tempo-btn" onclick="adjustTempo('song', 1)">+1</button>
+                                        <button type="button" class="tempo-btn" onclick="adjustTempo('song', 5)">+5</button>
+                                    </div>
+                                    <button type="button" class="play-btn" id="playBtn" onclick="playOrGenerate()" title="Play">
+                                        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    </button>
+                                </div>
+                                <div id="audioRow" class="audio-row" style="display: none;">
+                                    <audio id="songAudioPlayer" controls loop></audio>
+                                    <a id="songDownloadLink" class="download-link" download>Download</a>
+                                </div>
                             </div>
 
                             <!-- Mobile tabs (hidden on wide screens) -->
@@ -832,7 +864,7 @@ HTML_TEMPLATE = """
                 const formData = new FormData();
                 formData.append('progression', chords);
                 formData.append('tempo', document.getElementById('customTempo').value);
-                formData.append('repeats', document.getElementById('customRepeats').value);
+                formData.append('repeats', '1');
 
                 const response = await fetch('/generate', { method: 'POST', body: formData });
                 const data = await response.json();
@@ -1066,8 +1098,8 @@ HTML_TEMPLATE = """
 
             // Update meta to show transposition
             const transposedLabel = targetKey !== originalKey
-                ? `Original: ${originalKey} → ${targetKey}`
-                : `Key: ${originalKey}`;
+                ? `(from ${originalKey})`
+                : '';
             document.getElementById('previewMeta').textContent = transposedLabel;
 
             // Render sections with transposed chords
@@ -1172,7 +1204,6 @@ HTML_TEMPLATE = """
         // Clear cache when settings change
         document.getElementById('songKey').addEventListener('change', clearCachedAudio);
         document.getElementById('songTempo').addEventListener('input', clearCachedAudio);
-        document.getElementById('songRepeats').addEventListener('change', clearCachedAudio);
 
         async function playOrGenerate() {
             if (!selectedSong) return;
@@ -1195,7 +1226,7 @@ HTML_TEMPLATE = """
                 const formData = new FormData();
                 formData.append('song_id', selectedSong.id);
                 formData.append('tempo', document.getElementById('songTempo').value);
-                formData.append('repeats', document.getElementById('songRepeats').value);
+                formData.append('repeats', '1');
                 formData.append('key', document.getElementById('songKey').value);
                 formData.append('original_key', getPrimaryKey(selectedSong.key));
 
