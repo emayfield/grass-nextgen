@@ -4,6 +4,7 @@ Bluegrass Backing Track Generator - Web Interface
 A Flask web app that generates bluegrass backing tracks from chord progressions.
 """
 
+import json
 import os
 import re
 import tempfile
@@ -11,6 +12,7 @@ import uuid
 from pathlib import Path
 
 from flask import Flask, render_template, request, send_file, jsonify
+from youtubesearchpython import VideosSearch
 
 from bluegrass_midi import (
     generate_bluegrass_midi, load_songs, list_songs,
@@ -57,6 +59,14 @@ def get_songs_data():
             print(f"Warning: Could not load songs.json: {e}")
 
     return SONGS_DATA
+
+
+def save_songs_data(songs_data):
+    """Save songs data back to songs.json."""
+    global SONGS_MTIME
+    with open(SONGS_PATH, 'w') as f:
+        json.dump(songs_data, f, indent=2)
+    SONGS_MTIME = SONGS_PATH.stat().st_mtime
 
 
 # =============================================================================
@@ -296,6 +306,122 @@ def generate_song_route():
             'audio_url': f'/audio/{mp3_path.name}',
             'filename': f"{base_name}.mp3"
         })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+# =============================================================================
+# Demo Video Management Routes
+# =============================================================================
+
+@app.route('/manage')
+def manage():
+    """Serve the demo video management page."""
+    return render_template('manage.html')
+
+
+@app.route('/api/search_youtube', methods=['POST'])
+def search_youtube():
+    """Search YouTube for demo videos related to a song."""
+    try:
+        query = request.json.get('query', '').strip()
+        limit = request.json.get('limit', 10)
+
+        if not query:
+            return jsonify({'success': False, 'error': 'No search query provided'})
+
+        # Search YouTube
+        search = VideosSearch(query, limit=limit)
+        results = search.result().get('result', [])
+
+        videos = []
+        for v in results:
+            videos.append({
+                'id': v.get('id', ''),
+                'title': v.get('title', ''),
+                'url': f"https://youtu.be/{v.get('id', '')}",
+                'channel': v.get('channel', {}).get('name', ''),
+                'thumbnail': v.get('thumbnails', [{}])[0].get('url', ''),
+                'duration': v.get('duration', '')
+            })
+
+        return jsonify({'success': True, 'videos': videos})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/add_demo', methods=['POST'])
+def add_demo():
+    """Add a demo video URL to a song in songs.json."""
+    try:
+        song_id = request.json.get('song_id', '').strip()
+        video_url = request.json.get('video_url', '').strip()
+        is_featured = request.json.get('featured', False)
+
+        if not song_id or not video_url:
+            return jsonify({'success': False, 'error': 'Missing song_id or video_url'})
+
+        songs_data = get_songs_data()
+        if songs_data is None:
+            return jsonify({'success': False, 'error': 'Song library not available'})
+
+        if song_id not in songs_data:
+            return jsonify({'success': False, 'error': f'Song not found: {song_id}'})
+
+        song = songs_data[song_id]
+
+        # Add to appropriate list
+        if is_featured:
+            if 'featured_demo' not in song:
+                song['featured_demo'] = []
+            if video_url not in song['featured_demo']:
+                song['featured_demo'].append(video_url)
+        else:
+            if 'demo' not in song:
+                song['demo'] = []
+            if video_url not in song['demo']:
+                song['demo'].append(video_url)
+
+        # Save back to file
+        save_songs_data(songs_data)
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/remove_demo', methods=['POST'])
+def remove_demo():
+    """Remove a demo video from a song."""
+    try:
+        song_id = request.json.get('song_id', '').strip()
+        video_url = request.json.get('video_url', '').strip()
+
+        if not song_id or not video_url:
+            return jsonify({'success': False, 'error': 'Missing song_id or video_url'})
+
+        songs_data = get_songs_data()
+        if songs_data is None:
+            return jsonify({'success': False, 'error': 'Song library not available'})
+
+        if song_id not in songs_data:
+            return jsonify({'success': False, 'error': f'Song not found: {song_id}'})
+
+        song = songs_data[song_id]
+
+        # Remove from both lists if present
+        if 'demo' in song and video_url in song['demo']:
+            song['demo'].remove(video_url)
+        if 'featured_demo' in song and video_url in song['featured_demo']:
+            song['featured_demo'].remove(video_url)
+
+        # Save back to file
+        save_songs_data(songs_data)
+
+        return jsonify({'success': True})
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})

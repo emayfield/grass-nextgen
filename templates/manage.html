@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grass - Video Manager</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        /* Manage page specific styles */
+        .manage-main {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .manage-header {
+            margin-bottom: 24px;
+        }
+
+        .manage-header h2 {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a3d1f;
+            margin: 0 0 8px 0;
+        }
+
+        .manage-header .song-key {
+            font-size: 14px;
+        }
+
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c5530;
+            margin: 0 0 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .current-demos {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            border: 1px solid #ddd;
+        }
+
+        .demo-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .demo-item:last-child {
+            border-bottom: none;
+        }
+
+        .demo-item .demo-thumb {
+            width: 80px;
+            height: 45px;
+            border-radius: 4px;
+            object-fit: cover;
+            background: #ddd;
+        }
+
+        .demo-item .demo-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .demo-item .demo-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .demo-item .demo-url {
+            font-size: 11px;
+            color: #888;
+        }
+
+        .demo-item .remove-btn {
+            padding: 6px 12px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .demo-item .remove-btn:hover {
+            background: #c82333;
+        }
+
+        .no-demos-msg {
+            color: #888;
+            font-style: italic;
+            font-size: 13px;
+        }
+
+        .search-section {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid #ddd;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #2c5530;
+        }
+
+        .search-btn {
+            padding: 10px 20px;
+            background: #2c5530;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .search-btn:hover {
+            background: #1e3d22;
+        }
+
+        .search-btn:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+
+        .search-results {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .video-card {
+            background: #f8f9fa;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .video-card:hover {
+            border-color: #ccc;
+        }
+
+        .video-card.selected {
+            border-color: #2c5530;
+            background: #e8f5e9;
+        }
+
+        .video-card .thumb {
+            width: 100%;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            background: #ddd;
+        }
+
+        .video-card .card-body {
+            padding: 10px;
+        }
+
+        .video-card .video-title {
+            font-size: 12px;
+            font-weight: 500;
+            color: #333;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+
+        .video-card .video-channel {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .video-card .video-duration {
+            font-size: 10px;
+            color: #888;
+        }
+
+        .video-card .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #ddd;
+        }
+
+        .video-card input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+        }
+
+        .add-selected-btn {
+            margin-top: 16px;
+            padding: 12px 24px;
+            background: #2c5530;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .add-selected-btn:hover {
+            background: #1e3d22;
+        }
+
+        .add-selected-btn:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+
+        .no-results {
+            color: #888;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .select-song-prompt {
+            text-align: center;
+            padding: 60px 20px;
+            color: #888;
+        }
+
+        .select-song-prompt h3 {
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .back-link {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: white;
+            text-decoration: none;
+            font-size: 13px;
+            opacity: 0.8;
+        }
+
+        .back-link:hover {
+            opacity: 1;
+        }
+
+        .top-header {
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-header">
+        <h1>Grass - Video Manager</h1>
+        <a href="/" class="back-link">Back to Player</a>
+    </div>
+    <div class="layout">
+        <!-- Sidebar with song list -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <input type="text" id="songSearch" placeholder="Search songs..."
+                       oninput="filterSongs(this.value)">
+            </div>
+            <div class="song-list" id="songList">
+                <div class="no-songs">Loading songs...</div>
+            </div>
+        </div>
+
+        <!-- Main content area -->
+        <div class="manage-main">
+            <div id="noSongSelected" class="select-song-prompt">
+                <h3>No song selected</h3>
+                <p>Select a song from the sidebar to manage its demo videos</p>
+            </div>
+
+            <div id="manageContent" style="display: none;">
+                <div class="manage-header">
+                    <h2 id="manageSongTitle"></h2>
+                    <span id="manageSongKey" class="song-key"></span>
+                </div>
+
+                <!-- Current Demos -->
+                <div class="current-demos">
+                    <h3 class="section-title">Current Demo Videos</h3>
+                    <div id="currentDemos">
+                        <p class="no-demos-msg">No demo videos yet</p>
+                    </div>
+                </div>
+
+                <!-- YouTube Search -->
+                <div class="search-section">
+                    <h3 class="section-title">Search YouTube for Demos</h3>
+                    <div class="search-row">
+                        <input type="text" id="searchQuery" class="search-input"
+                               placeholder="e.g. Blackberry Blossom bluegrass live">
+                        <button id="searchBtn" class="search-btn" onclick="searchYouTube()">
+                            Search
+                        </button>
+                    </div>
+                    <div id="searchResults" class="search-results"></div>
+                    <button id="addSelectedBtn" class="add-selected-btn" onclick="addSelectedVideos()"
+                            style="display: none;">
+                        Add Selected Videos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/manage.js') }}"></script>
+</body>
+</html>
