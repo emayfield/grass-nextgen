@@ -314,6 +314,9 @@ function createCustomSong() {
     document.querySelectorAll('.song-item').forEach(el => el.classList.remove('selected'));
     selectedSong = null;
 
+    // Clear saved song
+    localStorage.removeItem('selectedSongId');
+
     // Hide other views, show custom editor
     document.getElementById('noSongSelected').style.display = 'none';
     document.getElementById('songControls').style.display = 'none';
@@ -336,6 +339,12 @@ async function loadSongs() {
         const response = await fetch('/api/songs');
         songs = await response.json();
         renderSongs(songs, []);
+
+        // Restore previously selected song
+        const savedSongId = localStorage.getItem('selectedSongId');
+        if (savedSongId && songs.find(s => s.id === savedSongId)) {
+            selectSong(savedSongId);
+        }
     } catch (err) {
         document.getElementById('songList').innerHTML =
             '<div class="no-songs">Could not load songs</div>';
@@ -606,6 +615,9 @@ function selectSong(songId) {
 
     // Reset audio when song changes
     clearCachedAudio();
+
+    // Remember selected song for page refresh
+    localStorage.setItem('selectedSongId', songId);
 }
 
 /* ==========================================================================
