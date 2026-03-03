@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: grass-nextgen
+    runtime: python
+    buildCommand: |
+      pip install -r requirements.txt
+      mkdir -p soundfonts
+      if [ ! -f soundfonts/MuseScore_General.sf2 ]; then
+        echo "Downloading SoundFont..."
+        curl -L -o soundfonts/MuseScore_General.sf2 https://ftp.osuosl.org/pub/musescore/soundfont/MuseScore_General/MuseScore_General.sf2
+      fi
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+    disk:
+      name: soundfonts
+      mountPath: /opt/render/project/src/soundfonts
+      sizeGB: 1
