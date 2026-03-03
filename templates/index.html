@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grass</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="top-header">
+        <h1>Grass</h1>
+    </div>
+    <div class="layout">
+        <!-- Sidebar with song list -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <input type="text" id="songSearch" placeholder="Search songs..."
+                       oninput="filterSongs(this.value)">
+            </div>
+            <div class="song-list" id="songList">
+                <div class="no-songs">Loading songs...</div>
+            </div>
+            <div class="sidebar-footer">
+                <button class="create-custom-btn" onclick="createCustomSong()">
+                    + Custom Song
+                </button>
+            </div>
+        </div>
+
+        <!-- Main content area -->
+        <div class="main">
+            <div class="main-inner">
+                <div id="noSongSelected" class="select-prompt">
+                    <h3>No song selected</h3>
+                    <p>Select a song from the sidebar to get started</p>
+                </div>
+
+                <!-- Custom song editor -->
+                <div id="customSongEditor" class="custom-song-editor" style="display: none;">
+                    <div class="preview-header">
+                        <input type="text" id="customTitle" class="song-title-main title-input"
+                               placeholder="Song Title" value="Custom Song">
+                        <div class="track-controls">
+                            <select id="customKey" class="key-select" onchange="clearCustomCache()">
+                                <option value="C">C</option>
+                                <option value="D">D</option>
+                                <option value="E">E</option>
+                                <option value="F">F</option>
+                                <option value="G" selected>G</option>
+                                <option value="A">A</option>
+                                <option value="B">B</option>
+                                <option value="Am">Am</option>
+                                <option value="Dm">Dm</option>
+                                <option value="Em">Em</option>
+                            </select>
+                            <div class="tempo-control">
+                                <button type="button" class="tempo-btn" onclick="adjustTempo('custom', -5)">-5</button>
+                                <button type="button" class="tempo-btn" onclick="adjustTempo('custom', -1)">-1</button>
+                                <input type="range" id="customTempo" class="tempo-slider"
+                                       value="110" min="60" max="160" oninput="updateTempoDisplay('custom'); clearCustomCache()">
+                                <span id="customTempoValue" class="tempo-value">110</span>
+                                <button type="button" class="tempo-btn" onclick="adjustTempo('custom', 1)">+1</button>
+                                <button type="button" class="tempo-btn" onclick="adjustTempo('custom', 5)">+5</button>
+                            </div>
+                            <button type="button" class="play-btn" id="customPlayBtn" onclick="playCustom()" title="Play">
+                                <svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                <svg class="icon-stop" viewBox="0 0 24 24" style="display:none;"><rect x="6" y="6" width="12" height="12"/></svg>
+                            </button>
+                            <audio id="customAudioPlayer" loop style="display:none;"></audio>
+                        </div>
+                    </div>
+
+                    <label for="customChords">Chord Progression</label>
+                    <input type="text" id="customChords" class="chords-input"
+                           placeholder="G G C D" value="G G C D" onchange="clearCustomCache()">
+                    <p class="help">One chord per bar. Use [C, G] for split bars, [G] for half bars.</p>
+
+                    <label for="customLyrics">Lyrics (optional)</label>
+                    <textarea id="customLyrics" class="lyrics-input"
+                              placeholder="Enter lyrics here...
+
+Use blank lines between verses.
+Wrap chorus in <chorus>...</chorus> tags."></textarea>
+                </div>
+
+                <div id="songControls" style="display: none;">
+                    <div id="songPreview" class="song-preview">
+                        <div class="preview-header">
+                            <span id="previewTitle" class="song-title-main"></span>
+                            <span id="previewMeta" class="key-meta"></span>
+                            <div class="track-controls">
+                                <select id="songKey" class="key-select" onchange="updateChordPreview()">
+                                    <option value="">Key</option>
+                                </select>
+                                <div class="tempo-control">
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('song', -5)">-5</button>
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('song', -1)">-1</button>
+                                    <input type="range" id="songTempo" class="tempo-slider"
+                                           value="110" min="60" max="160" oninput="updateTempoDisplay('song')">
+                                    <span id="songTempoValue" class="tempo-value">110</span>
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('song', 1)">+1</button>
+                                    <button type="button" class="tempo-btn" onclick="adjustTempo('song', 5)">+5</button>
+                                </div>
+                                <button type="button" class="play-btn" id="playBtn" onclick="playOrGenerate()" title="Play">
+                                    <svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                    <svg class="icon-stop" viewBox="0 0 24 24" style="display:none;"><rect x="6" y="6" width="12" height="12"/></svg>
+                                </button>
+                                <audio id="songAudioPlayer" loop style="display:none;"></audio>
+                            </div>
+                        </div>
+
+                        <!-- Mobile tabs (hidden on wide screens) -->
+                        <div class="mobile-tabs" id="mobileTabs">
+                            <button class="mobile-tab active" onclick="showMobileTab('chords')">Chords/Lyrics</button>
+                            <button class="mobile-tab" onclick="showMobileTab('demos')">Demos</button>
+                        </div>
+
+                        <div class="song-columns">
+                            <!-- Left column: Chords & Lyrics -->
+                            <div class="song-col-left" id="chordsLyricsCol">
+                                <div id="previewSections"></div>
+                                <div id="lyricsSection" class="lyrics-section" style="display: none;">
+                                    <h3>Lyrics</h3>
+                                    <div id="lyricsContent" class="lyrics-content"></div>
+                                </div>
+                            </div>
+
+                            <!-- Right column: Demo Videos -->
+                            <div class="song-col-right" id="demosCol">
+                                <div id="demoSection" class="demo-section">
+                                    <h3>Demo Videos</h3>
+                                    <div id="demoVideos" class="demo-videos"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
