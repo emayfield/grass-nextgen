@@ -276,10 +276,18 @@ def generate_song_route():
         midi_path = OUTPUT_DIR / f"{base_name}.mid"
         mp3_path = OUTPUT_DIR / f"{base_name}.mp3"
 
+        # Determine time signature from song's signature field
+        signature = song.get('signature', '')
+        if signature == 'waltz':
+            time_sig = (3, 4)
+        else:
+            time_sig = (4, 4)
+
         # Generate MIDI
         _, duration = generate_bluegrass_midi(
             full_progression,
             tempo=tempo,
+            time_sig=time_sig,
             output_file=str(midi_path)
         )
 

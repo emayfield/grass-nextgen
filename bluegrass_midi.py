@@ -333,7 +333,7 @@ def generate_bluegrass_midi(
             guitar_events.append(('off', chop_beat + eighth_note, note, 0))
 
     def add_full_bar(chord_name, bar_start, bass_events, mando_events, guitar_events):
-        """Add notes for a full bar with root on 1, 5th on 3."""
+        """Add notes for a full bar with root on 1, 5th on 3 (4/4 time)."""
         chord = get_chord_notes(chord_name)
         bass_root = note_to_midi(chord['root_name'], bass_octave)
         bass_fifth = bass_root + 7
@@ -377,6 +377,46 @@ def generate_bluegrass_midi(
             guitar_events.append(('on', beat_4_start, note, 70))
             guitar_events.append(('off', beat_4_start + eighth_note, note, 0))
 
+    def add_waltz_bar(chord_name, bar_start, bass_events, mando_events, guitar_events):
+        """Add notes for a waltz bar (3/4 time): oom-pah-pah pattern."""
+        chord = get_chord_notes(chord_name)
+        bass_root = note_to_midi(chord['root_name'], bass_octave)
+
+        beat_2_start = bar_start + quarter_note
+        beat_3_start = bar_start + (2 * quarter_note)
+
+        # Bass: root on beat 1 only (strong downbeat)
+        bass_events.append(('on', bar_start, bass_root, 100))
+        bass_events.append(('off', bar_start + bass_duration, bass_root, 0))
+
+        # Mandolin: chop on beats 2 and 3
+        mando_chord = [note_to_midi(chord['root_name'], mandolin_octave) + i
+                       for i in CHORD_INTERVALS[chord['chord_type']]]
+        for beat_start in [beat_2_start, beat_3_start]:
+            for note in mando_chord:
+                mando_events.append(('on', beat_start, note, 100))
+                mando_events.append(('off', beat_start + chop_duration, note, 0))
+
+        # Guitar: bass on 1, chord strums on 2 and 3
+        guitar_bass_root = note_to_midi(chord['root_name'], guitar_octave)
+        guitar_chord = [note_to_midi(chord['root_name'], guitar_octave + 1) + i
+                        for i in CHORD_INTERVALS[chord['chord_type']]]
+
+        # Beat 1: bass root
+        guitar_events.append(('on', bar_start, guitar_bass_root, 85))
+        guitar_events.append(('off', bar_start + eighth_note, guitar_bass_root, 0))
+        # Beat 2: chord strum
+        for note in guitar_chord:
+            guitar_events.append(('on', beat_2_start, note, 70))
+            guitar_events.append(('off', beat_2_start + eighth_note, note, 0))
+        # Beat 3: chord strum
+        for note in guitar_chord:
+            guitar_events.append(('on', beat_3_start, note, 65))
+            guitar_events.append(('off', beat_3_start + eighth_note, note, 0))
+
+    # Determine if this is a waltz (3/4 time)
+    is_waltz = (beats_per_bar == 3)
+
     # Track position with a running tick counter (for half-measures)
     current_tick = 0
     half_bar_ticks = ticks_per_bar // 2
@@ -388,14 +428,14 @@ def generate_bluegrass_midi(
 
         elif isinstance(bar_entry, list):
             if len(bar_entry) == 1:
-                # Half measure: ["G"] - only 2 beats
+                # Half measure: ["G"] - only 2 beats (not used in waltz)
                 chord = bar_entry[0]
                 if chord != 'rest':
                     add_half_bar(chord, current_tick, 0, bass_events, mando_events, guitar_events)
                 current_tick += half_bar_ticks
 
             elif len(bar_entry) == 2:
-                # Split bar: ["C", "G"] or ["C", "rest"]
+                # Split bar: ["C", "G"] or ["C", "rest"] (not typical in waltz)
                 first_chord, second_chord = bar_entry
 
                 if first_chord != 'rest':
@@ -407,12 +447,18 @@ def generate_bluegrass_midi(
                 current_tick += ticks_per_bar
             else:
                 # Unexpected list length, treat as full bar with first chord
-                add_full_bar(bar_entry[0], current_tick, bass_events, mando_events, guitar_events)
+                if is_waltz:
+                    add_waltz_bar(bar_entry[0], current_tick, bass_events, mando_events, guitar_events)
+                else:
+                    add_full_bar(bar_entry[0], current_tick, bass_events, mando_events, guitar_events)
                 current_tick += ticks_per_bar
 
         else:
-            # Full bar: single chord string with root-5th pattern
-            add_full_bar(bar_entry, current_tick, bass_events, mando_events, guitar_events)
+            # Full bar: single chord string
+            if is_waltz:
+                add_waltz_bar(bar_entry, current_tick, bass_events, mando_events, guitar_events)
+            else:
+                add_full_bar(bar_entry, current_tick, bass_events, mando_events, guitar_events)
             current_tick += ticks_per_bar
 
     # Convert events to MIDI messages with delta times
