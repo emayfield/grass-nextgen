@@ -221,6 +221,7 @@ def api_list_songs():
             'title': data.get('title', song_id),
             'key': data.get('key', 'C'),
             'type': data.get('type', 'unknown'),
+            'signature': data.get('signature', ''),
             'sections': data.get('sections', []),
             'lyrics': data.get('lyrics', ''),
             'demo': data.get('demo', []),

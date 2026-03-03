@@ -114,10 +114,12 @@ function setPlayButtonState(btn, isPlaying) {
 }
 
 function getBarDuration() {
-    // Bar duration in seconds for cut-time bluegrass
-    // Internal tempo is doubled, so each bar = 120 / user_tempo
+    // Bar duration in seconds
+    // For 4/4 cut-time: internal tempo is doubled, so each bar = 120 / user_tempo
+    // For 3/4 waltz: 3 beats per bar, so each bar = 90 / user_tempo
     const tempo = parseInt(document.getElementById('songTempo').value) || 110;
-    return 120 / tempo;
+    const isWaltz = selectedSong && selectedSong.signature === 'waltz';
+    return isWaltz ? (90 / tempo) : (120 / tempo);
 }
 
 function highlightChordAtTime(currentTime) {
@@ -564,6 +566,11 @@ function selectSong(songId) {
 
     // Update title
     document.getElementById('previewTitle').textContent = selectedSong.title;
+
+    // Set default tempo based on song type (waltzes are slower)
+    const defaultTempo = selectedSong.signature === 'waltz' ? 70 : 110;
+    document.getElementById('songTempo').value = defaultTempo;
+    updateTempoDisplay('song');
 
     // Render chords (will use original key since dropdown is set to original)
     updateChordPreview();
