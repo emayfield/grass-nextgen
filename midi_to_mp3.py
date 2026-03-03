@@ -140,12 +140,10 @@ def find_soundfont(specified_path=None):
         if path.exists():
             return path
 
-    # Offer to download
-    print("No SoundFont found.")
-    response = input(f"Download GeneralUser_GS.sf2 (~{SOUNDFONT_SIZE_MB}MB)? [y/N] ").strip().lower()
-    if response == 'y':
-        if download_soundfont(DEFAULT_SOUNDFONT):
-            return DEFAULT_SOUNDFONT
+    # Auto-download if not found (non-interactive for production environments)
+    print("No SoundFont found. Downloading automatically...")
+    if download_soundfont(DEFAULT_SOUNDFONT):
+        return DEFAULT_SOUNDFONT
 
     return None
 
